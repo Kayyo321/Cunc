@@ -1,6 +1,12 @@
 package editor
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -8,12 +14,25 @@ import (
 )
 
 type Model struct {
-	to      textinput.Model
-	subject textinput.Model
-	body    textarea.Model
-	focus   int
-	width   int
-	height  int
+	to       textinput.Model
+	subject  textinput.Model
+	body     textarea.Model
+	focus    int
+	width    int
+	height   int
+	draftID  string
+	lastSave time.Time
+}
+
+func ComposeFrom(m Model) {
+	p := tea.NewProgram(InitialModel())
+	if _, err := p.Run(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func Compose() {
+	ComposeFrom(InitialModel())
 }
 
 func InitialModel() Model {
@@ -34,6 +53,32 @@ func InitialModel() Model {
 		focus:   0,
 		width:   80,
 		height:  24,
+		draftID: fmt.Sprintf("%d", time.Now().UnixNano()),
+	}
+}
+
+func LoadDraft(draftID, to, subject, body string) Model {
+	toInput := textinput.New()
+	toInput.SetValue(to)
+	toInput.Placeholder = "Recipient email"
+	toInput.Focus()
+
+	subjectInput := textinput.New()
+	subjectInput.SetValue(subject)
+	subjectInput.Placeholder = "Subject"
+
+	bodyInput := textarea.New()
+	bodyInput.SetValue(body)
+	bodyInput.Placeholder = "Write your message..."
+
+	return Model{
+		to:      toInput,
+		subject: subjectInput,
+		body:    bodyInput,
+		focus:   0,
+		width:   80,
+		height:  24,
+		draftID: draftID,
 	}
 }
 
@@ -56,6 +101,46 @@ func (m *Model) Refocus() {
 	}
 }
 
+func (m *Model) SaveAsDraft() {
+	draftDir := getDraftDir()
+	if err := os.MkdirAll(draftDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating draft directory: %v\n", err)
+		return
+	}
+
+	draft := map[string]string{
+		"to":      m.GetTo(),
+		"subject": m.GetSubject(),
+		"body":    m.GetBody(),
+	}
+
+	draftPath := filepath.Join(draftDir, m.draftID+".json")
+	data, err := json.MarshalIndent(draft, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error marshaling draft: %v\n", err)
+		return
+	}
+
+	if err := os.WriteFile(draftPath, data, 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error saving draft: %v\n", err)
+		return
+	}
+
+	m.lastSave = time.Now()
+}
+
+func getDraftDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".cunc_drafts"
+	}
+	return filepath.Join(home, ".local", "share", "cunc", "drafts")
+}
+
+func (m *Model) SendEmail() {
+
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
@@ -70,7 +155,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 
-		case "ctrl+c":
+		case "ctrl+q":
+			fmt.Print("\033[2J")
 			return m, tea.Quit
 
 		case "tab":
@@ -80,6 +166,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "shift+tab":
 			m.focus = (m.focus - 1 + 3) % 3
 			m.Refocus()
+
+		case "ctrl+s":
+			m.SaveAsDraft()
+			fmt.Print("\033[2J")
+			return m, tea.Quit
+
+		case "ctrl+enter":
+			m.SendEmail()
+			fmt.Print("\033[2J")
+			return m, tea.Quit
 		}
 	}
 
@@ -102,13 +198,21 @@ func (m Model) View() string {
 		Border(lipgloss.RoundedBorder()).
 		Padding(1).
 		Width(m.width - 2).
-		Height(m.height - 2)
+		Height(m.height - 6)
 
-	return box.Render(
+	content := box.Render(
 		"To:\n" + m.to.View() +
 			"\n\nSubject:\n" + m.subject.View() +
 			"\n\nBody:\n" + m.body.View(),
 	)
+
+	footer := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("8")).
+		Padding(0, 1).
+		Width(m.width - 2).
+		Render("ctrl+q quit • tab/shift+tab navigate • ctrl+s save as draft • ctrl+enter send email")
+
+	return lipgloss.JoinVertical(lipgloss.Left, content, footer)
 }
 
 func (m Model) GetTo() string {

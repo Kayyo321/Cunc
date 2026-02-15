@@ -1,29 +1,68 @@
 package main
 
 import (
+	"cunc/src/drafts"
+	"cunc/src/editor"
 	"fmt"
 	"os"
-
-	"cunc/src/editor"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func main() {
-	p := tea.NewProgram(editor.InitialModel())
-	var final_model tea.Model
+func usage() {
+	fmt.Println("cunc <mode>")
+	fmt.Println()
+	fmt.Println("     -help : lets you read this page")
+	fmt.Println("     -h")
+	fmt.Println()
+	fmt.Println("     -compose : begin writing a new email through this mode you can ")
+	fmt.Println("     -c         save your current email as a draft")
+	fmt.Println()
+	fmt.Println("     -drafts : view and edit your saved drafts")
+	fmt.Println("     -d")
+	fmt.Println()
+}
+
+func viewDrafts() {
+	p := tea.NewProgram(drafts.InitialModel())
 	if model, err := p.Run(); err != nil {
 		os.Exit(1)
 	} else {
-		final_model = model
+		draftsModel := model.(drafts.Model)
+		if draft := draftsModel.GetSelectedDraft(); draft != nil {
+			// Load the selected draft in the editor
+			editorModel := editor.LoadDraft(draft.ID, draft.To, draft.Subject, draft.Body)
+			editorProgram := tea.NewProgram(editorModel)
+			if _, err := editorProgram.Run(); err != nil {
+				os.Exit(1)
+			}
+		}
+	}
+}
+
+func main() {
+	modes := map[string]func(){
+		"-help": usage,
+		"-h":    usage,
+
+		"-compose": editor.Compose,
+		"-c":       editor.Compose,
+
+		"-drafts": viewDrafts,
+		"-d":      viewDrafts,
 	}
 
-	editorModel := final_model.(editor.Model)
-	to := editorModel.GetTo()
-	subject := editorModel.GetSubject()
-	body := editorModel.GetBody()
+	if len(os.Args) != 2 {
+		usage()
+		os.Exit(1)
+	}
 
-	fmt.Println("To:", to)
-	fmt.Println("Subject:", subject)
-	fmt.Println("Body:", body)
+	mode := os.Args[1]
+	if todo, ok := modes[mode]; ok {
+		todo()
+	} else {
+		fmt.Fprintf(os.Stderr, "Unknown mode: '%s'\n", mode)
+
+		usage()
+	}
 }
