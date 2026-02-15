@@ -27,9 +27,9 @@ type Model struct {
 }
 
 func InitialModel() Model {
-	drafts := loadDrafts()
+	drafts_list := load_drafts()
 	return Model{
-		drafts:   drafts,
+		drafts:   drafts_list,
 		selected: 0,
 		width:    80,
 		height:   24,
@@ -92,7 +92,7 @@ func (m Model) View() string {
 		return lipgloss.JoinVertical(lipgloss.Left, content, footer)
 	}
 
-	var draftLines string
+	var draft_lines string
 	for i, draft := range m.drafts {
 		line := fmt.Sprintf("  To: %s | Subject: %s", draft.To, draft.Subject)
 
@@ -106,9 +106,9 @@ func (m Model) View() string {
 		}
 
 		if i > 0 {
-			draftLines += "\n"
+			draft_lines += "\n"
 		}
-		draftLines += line
+		draft_lines += line
 	}
 
 	box := lipgloss.NewStyle().
@@ -117,7 +117,7 @@ func (m Model) View() string {
 		Width(m.width - 2).
 		Height(m.height - 6)
 
-	content := box.Render(draftLines)
+	content := box.Render(draft_lines)
 
 	footer := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("8")).
@@ -135,11 +135,11 @@ func (m Model) GetSelectedDraft() *Draft {
 	return nil
 }
 
-func loadDrafts() []Draft {
-	draftDir := getDraftDir()
+func load_drafts() []Draft {
+	draft_dir := get_draft_dir()
 	var drafts []Draft
 
-	entries, err := os.ReadDir(draftDir)
+	entries, err := os.ReadDir(draft_dir)
 	if err != nil {
 		return drafts
 	}
@@ -149,23 +149,23 @@ func loadDrafts() []Draft {
 			continue
 		}
 
-		draftPath := filepath.Join(draftDir, entry.Name())
-		data, err := os.ReadFile(draftPath)
+		draft_path := filepath.Join(draft_dir, entry.Name())
+		data, err := os.ReadFile(draft_path)
 		if err != nil {
 			continue
 		}
 
-		var draftData map[string]string
-		if err := json.Unmarshal(data, &draftData); err != nil {
+		var draft_data map[string]string
+		if err := json.Unmarshal(data, &draft_data); err != nil {
 			continue
 		}
 
-		draftID := entry.Name()[:len(entry.Name())-5] // Remove .json extension
+		draft_id := entry.Name()[:len(entry.Name())-5] // Remove .json extension
 		drafts = append(drafts, Draft{
-			ID:      draftID,
-			To:      draftData["to"],
-			Subject: draftData["subject"],
-			Body:    draftData["body"],
+			ID:      draft_id,
+			To:      draft_data["to"],
+			Subject: draft_data["subject"],
+			Body:    draft_data["body"],
 		})
 	}
 
@@ -177,7 +177,7 @@ func loadDrafts() []Draft {
 	return drafts
 }
 
-func getDraftDir() string {
+func get_draft_dir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ".cunc_drafts"

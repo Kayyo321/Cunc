@@ -23,17 +23,17 @@ func usage() {
 	fmt.Println()
 }
 
-func viewDrafts() {
+func view_drafts() {
 	p := tea.NewProgram(drafts.InitialModel())
-	if model, err := p.Run(); err != nil {
+	if model_result, err := p.Run(); err != nil {
 		os.Exit(1)
 	} else {
-		draftsModel := model.(drafts.Model)
-		if draft := draftsModel.GetSelectedDraft(); draft != nil {
+		drafts_model := model_result.(drafts.Model)
+		if draft := drafts_model.GetSelectedDraft(); draft != nil {
 			// Load the selected draft in the editor
-			editorModel := editor.LoadDraft(draft.ID, draft.To, draft.Subject, draft.Body)
-			editorProgram := tea.NewProgram(editorModel)
-			if _, err := editorProgram.Run(); err != nil {
+			editor_model := editor.LoadDraft(draft.ID, draft.To, draft.Subject, draft.Body)
+			editor_program := tea.NewProgram(editor_model)
+			if _, err := editor_program.Run(); err != nil {
 				os.Exit(1)
 			}
 		}
@@ -48,8 +48,8 @@ func main() {
 		"-compose": editor.Compose,
 		"-c":       editor.Compose,
 
-		"-drafts": viewDrafts,
-		"-d":      viewDrafts,
+		"-drafts": view_drafts,
+		"-d":      view_drafts,
 	}
 
 	if len(os.Args) != 2 {
@@ -58,8 +58,8 @@ func main() {
 	}
 
 	mode := os.Args[1]
-	if todo, ok := modes[mode]; ok {
-		todo()
+	if handler, ok := modes[mode]; ok {
+		handler()
 	} else {
 		fmt.Fprintf(os.Stderr, "Unknown mode: '%s'\n", mode)
 

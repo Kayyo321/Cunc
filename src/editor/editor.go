@@ -14,14 +14,14 @@ import (
 )
 
 type Model struct {
-	to       textinput.Model
-	subject  textinput.Model
-	body     textarea.Model
-	focus    int
-	width    int
-	height   int
-	draftID  string
-	lastSave time.Time
+	to        textinput.Model
+	subject   textinput.Model
+	body      textarea.Model
+	focus     int
+	width     int
+	height    int
+	draft_id  string
+	last_save time.Time
 }
 
 func ComposeFrom(m Model) {
@@ -47,38 +47,38 @@ func InitialModel() Model {
 	body.Placeholder = "Write your message..."
 
 	return Model{
-		to:      to,
-		subject: subject,
-		body:    body,
-		focus:   0,
-		width:   80,
-		height:  24,
-		draftID: fmt.Sprintf("%d", time.Now().UnixNano()),
+		to:       to,
+		subject:  subject,
+		body:     body,
+		focus:    0,
+		width:    80,
+		height:   24,
+		draft_id: fmt.Sprintf("%d", time.Now().UnixNano()),
 	}
 }
 
-func LoadDraft(draftID, to, subject, body string) Model {
-	toInput := textinput.New()
-	toInput.SetValue(to)
-	toInput.Placeholder = "Recipient email"
-	toInput.Focus()
+func LoadDraft(draft_id, to, subject, body string) Model {
+	to_input := textinput.New()
+	to_input.SetValue(to)
+	to_input.Placeholder = "Recipient email"
+	to_input.Focus()
 
-	subjectInput := textinput.New()
-	subjectInput.SetValue(subject)
-	subjectInput.Placeholder = "Subject"
+	subject_input := textinput.New()
+	subject_input.SetValue(subject)
+	subject_input.Placeholder = "Subject"
 
-	bodyInput := textarea.New()
-	bodyInput.SetValue(body)
-	bodyInput.Placeholder = "Write your message..."
+	body_input := textarea.New()
+	body_input.SetValue(body)
+	body_input.Placeholder = "Write your message..."
 
 	return Model{
-		to:      toInput,
-		subject: subjectInput,
-		body:    bodyInput,
-		focus:   0,
-		width:   80,
-		height:  24,
-		draftID: draftID,
+		to:       to_input,
+		subject:  subject_input,
+		body:     body_input,
+		focus:    0,
+		width:    80,
+		height:   24,
+		draft_id: draft_id,
 	}
 }
 
@@ -102,8 +102,8 @@ func (m *Model) Refocus() {
 }
 
 func (m *Model) SaveAsDraft() {
-	draftDir := getDraftDir()
-	if err := os.MkdirAll(draftDir, 0755); err != nil {
+	draft_dir := get_draft_dir()
+	if err := os.MkdirAll(draft_dir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating draft directory: %v\n", err)
 		return
 	}
@@ -114,22 +114,22 @@ func (m *Model) SaveAsDraft() {
 		"body":    m.GetBody(),
 	}
 
-	draftPath := filepath.Join(draftDir, m.draftID+".json")
+	draft_path := filepath.Join(draft_dir, m.draft_id+".json")
 	data, err := json.MarshalIndent(draft, "", "  ")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error marshaling draft: %v\n", err)
 		return
 	}
 
-	if err := os.WriteFile(draftPath, data, 0644); err != nil {
+	if err := os.WriteFile(draft_path, data, 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "Error saving draft: %v\n", err)
 		return
 	}
 
-	m.lastSave = time.Now()
+	m.last_save = time.Now()
 }
 
-func getDraftDir() string {
+func get_draft_dir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ".cunc_drafts"
