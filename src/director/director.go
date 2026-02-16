@@ -15,7 +15,7 @@ type Model struct {
 	selected       int
 	width          int
 	height         int
-	Action         string // "inbox", "drafts", "settings", "compose", "quit"
+	Action         string // action flag: inbox/drafts/settings/compose/quit
 	title_animator title.Animator
 }
 
@@ -26,7 +26,7 @@ type Option struct {
 }
 
 func InitialModel() Model {
-	// Check unicode support setting
+	// check unicode support setting, because ascii isn't always enough
 	sett := settings.InitialModel()
 	unicode_support := sett.GetSetting("unicode support") == "y"
 
@@ -108,7 +108,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Handle title animation updates
+	// handle title animation updates, because sparkles
 	if cmd := m.title_animator.Update(msg); cmd != nil {
 		return m, cmd
 	}
@@ -145,21 +145,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	// Render animated title
+	// render animated title, because sparkle tax
 	titleView := m.title_animator.Render()
 
-	// Welcome message
+	// welcome message
 	welcomeStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("8")).
 		Padding(1, 0, 0, 0)
 	welcome := welcomeStyle.Render("Welcome! Select a mode to get started:")
 
-	// Render options
+	// render options
 	var optionsView string
 	for i, option := range m.options {
 		var line string
 		if i == m.selected {
-			// Selected style
+			// selected style
 			line = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("7")).
 				Background(lipgloss.Color("4")).
@@ -168,7 +168,7 @@ func (m Model) View() string {
 				Width(m.width - 8).
 				Render(fmt.Sprintf("%s\n  %s", option.name, option.description))
 		} else {
-			// Normal style
+			// normal style
 			nameStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("12")).
 				Bold(true)

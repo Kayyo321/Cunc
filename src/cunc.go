@@ -41,7 +41,7 @@ func view_drafts() {
 		drafts_model := model_result.(drafts.Model)
 		if drafts_model.Action == "select" && drafts_model.GetSelectedDraft() != nil {
 			draft := drafts_model.GetSelectedDraft()
-			// Load the selected draft in the editor
+			// load the selected draft, because time travel
 			editor_model := editor.LoadDraft(draft.ID, draft.To, draft.Subject, draft.Body, draft.Attachments)
 			editor_program := tea.NewProgram(editor_model)
 			if _, err := editor_program.Run(); err != nil {
@@ -49,7 +49,7 @@ func view_drafts() {
 			}
 		}
 	}
-	fmt.Print("\033[2J\033[H") // Clear screen and move cursor to home
+	fmt.Print("\033[2J\033[H") // wipe the screen, pretend nothing happened
 }
 
 func view_settings() {
@@ -57,11 +57,11 @@ func view_settings() {
 	if _, err := p.Run(); err != nil {
 		os.Exit(1)
 	}
-	fmt.Print("\033[2J\033[H") // Clear screen and move cursor to home
+	fmt.Print("\033[2J\033[H") // wipe the screen, again
 }
 
 func view_inbox() {
-	// Try to read credentials from settings and fetch real emails via IMAP
+	// try to read credentials and fetch real emails, if the stars align
 	sm := settings.InitialModel()
 	user := sm.GetSetting("email")
 	pass := sm.GetSetting("2fa app-password")
@@ -69,7 +69,7 @@ func view_inbox() {
 		pass = sm.GetSetting("password")
 	}
 
-	// Determine per-page from settings
+	// figure out per-page from settings, because options
 	per_page := 10
 	if s := sm.GetSetting("emails per page"); s != "" {
 		if v, err := strconv.Atoi(s); err == nil && v > 0 {
@@ -78,11 +78,11 @@ func view_inbox() {
 	}
 
 	var inbox_model inbox.Model
-	// If credentials present, start with loading=true and let the inbox model fetch
+	// if credentials exist, start loading and let the inbox do the heavy lifting
 	if user != "" && pass != "" {
 		inbox_model = inbox.InitialModel([]inbox.Email{}, per_page, true, user, pass, 50)
 	} else {
-		// No credentials: provide sample emails and no loading
+		// no credentials, so we fake it with sample emails
 		emails := []inbox.Email{
 			{ID: "1", From: "alice@example.com", Subject: "Hello", Body: "Hi there! How are you?"},
 			{ID: "2", From: "bob@example.com", Subject: "Meeting", Body: "Don't forget our meeting tomorrow at 10am."},
@@ -91,16 +91,16 @@ func view_inbox() {
 		inbox_model = inbox.InitialModel(emails, per_page, false, "", "", 0)
 	}
 
-	// Run Bubble Tea program
+	// run bubble tea program
 	p := tea.NewProgram(inbox_model)
 	if _, err := p.Run(); err != nil {
 		os.Exit(1)
 	}
-	fmt.Print("\033[2J\033[H") // Clear screen and move cursor to home
+	fmt.Print("\033[2J\033[H") // clear the screen, because neat freak vibes
 }
 
 func main() {
-	// If command line arguments provided, use legacy direct mode access
+	// if command line args exist, use legacy direct mode, because nostalgia
 	if len(os.Args) == 2 {
 		modes := map[string]func(){
 			"-help": usage,
@@ -130,7 +130,7 @@ func main() {
 		}
 	}
 
-	// No arguments: run director mode with navigation loop
+	// no args: run director mode and hope the user is happy
 	for {
 		director_model := director.InitialModel()
 		p := tea.NewProgram(director_model)
@@ -143,7 +143,7 @@ func main() {
 		director_result := model_result.(director.Model)
 		action := director_result.Action
 
-		// Handle the selected action
+		// handle the selected action, i guess
 		switch action {
 		case "inbox":
 			view_inbox()
@@ -154,7 +154,7 @@ func main() {
 		case "settings":
 			view_settings()
 		case "quit":
-			fmt.Print("\033[2J\033[H") // Clear screen and move cursor to home
+			fmt.Print("\033[2J\033[H") // clear screen and move cursor home, because drama
 			return
 		default:
 			return

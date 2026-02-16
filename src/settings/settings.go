@@ -14,7 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// default_settings holds default values for each setting (and headers)
+// default_settings holds defaults, because magic numbers are fun
 var default_settings = map[string]string{
 	"_header_Account":  "",
 	"email":            "",
@@ -33,7 +33,7 @@ var default_settings = map[string]string{
 	"drafts directory":                 "~/.local/share/cunc/drafts",
 }
 
-// field_order defines the exact order in which headers and settings appear
+// field_order defines the exact order, because order matters now
 var field_order = []string{
 	"_header_Account",
 	"email",
@@ -52,15 +52,15 @@ var field_order = []string{
 	"drafts directory",
 }
 
-// sensitive_fields marks which settings should not be saved to normal JSON
+// sensitive_fields marks what we pretend to keep private
 var sensitive_fields = map[string]bool{
 	"password": true,
 }
 
-// Model holds the settings UI state
+// model holds the settings ui state, try not to break it
 type Model struct {
 	settings       map[string]string
-	fields         []string // ordered list including headers
+	fields         []string // ordered list including headers, no surprises
 	focused        int
 	width          int
 	height         int
@@ -68,14 +68,14 @@ type Model struct {
 	title_animator title.Animator
 }
 
-// InitialModel creates a new settings model
+// initialmodel creates a new settings model, because everything needs a model
 func InitialModel() Model {
 	settings_map := load_settings()
-	fields := field_order // preserve the order
+	fields := field_order // preserve the order, obviously
 
 	edit_values := make(map[int]*textinput.Model)
 
-	// Automatically focus first non-header field
+	// automatically focus the first real field, for the lazy
 	focused_set := false
 
 	for i, field := range fields {

@@ -26,7 +26,7 @@ type Email struct {
 	From        string
 	Subject     string
 	Body        string
-	HTMLBody    string // HTML version of email body
+	HTMLBody    string // html version of email body, because plain text is too easy
 	Attachments []Attachment
 }
 
@@ -40,49 +40,48 @@ type Model struct {
 	viewing_email       bool
 	viewing_attachments bool
 	selected_attachment int
-	Action              string // "select" or "quit"
+	Action              string // action flag, try not to panic
 
-	// async fetch control
+	// async fetch stuff, try not to trip
 	Loading    bool
 	fetch_user string
 	fetch_pass string
 	fetch_max  int
 
-	// pagination and lazy loading
-	total_available int  // total emails available on server (approx)
+	// paging and lazy loading, because waiting is a crime
+	total_available int  // total emails available on server (approx, maybe)
 	emails_offset   int  // offset for next batch fetch
-	fetching_more   bool // true when loading the next batch
+	fetching_more   bool // true while loading the next batch
 
-	// contact history
+	// contact history, aka people we emailed
 	contact_history *contacts.ContactHistory
 
-	// download status
+	// download status, also known as "did it work?"
 	download_message string
 	showing_download bool
 
-	// title animation
+	// title animation, because shiny
 	title_animator title.Animator
 
-	// spinner animation
 	spinner_frame int
 
-	// search mode
+	// search mode, for when you forgot who you emailed
 	search_mode      bool
 	search_query     string
 	search_results   []Email
 	search_input_pos int
 
-	// email view scrolling
+	// email view scrolling, for long-winded messages
 	email_scroll_offset int // vertical scroll offset when viewing an email
 
-	// sent emails view
-	view_mode    string  // "inbox" or "sent"
-	sent_emails  []Email // sent emails list
-	sent_loading bool    // loading sent emails
+	// sent emails view, because you also talk
+	view_mode    string  // "inbox" or "sent", pick your poison
+	sent_emails  []Email // sent emails list, because you did send them
+	sent_loading bool    // loading sent emails, brace yourself
 }
 
 func InitialModel(emails []Email, emails_per_page int, loading bool, fetch_user, fetch_pass string, fetch_max int) Model {
-	// Sort emails by ID descending (most recent first)
+	// sort by id desc, because newest should show up first, shocker
 	sort.Slice(emails, func(i, j int) bool {
 		return emails[i].ID > emails[j].ID
 	})
@@ -130,9 +129,9 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Handle title animation updates and spinner
+	// handle title animation updates and spinner, because sparkle therapy
 	if cmd := m.title_animator.Update(msg); cmd != nil {
-		// Also update spinner frame on each tick
+		// also update spinner frame on each tick, obviously
 		if _, ok := msg.(title.TickMsg); ok {
 			m.spinner_frame++
 		}
@@ -145,14 +144,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 	case tea.KeyMsg:
-		// Dismiss download message
+		// dismiss download message, because it got the memo
 		if m.showing_download {
 			m.showing_download = false
 			m.download_message = ""
 			return m, nil
 		}
 
-		// Handle search mode input
+		// handle search mode input, for your wandering brain
 		if m.search_mode {
 			switch msg.String() {
 			case "esc":
@@ -163,7 +162,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selected = 0
 
 			case "enter":
-				// Exit search input mode if we have results
+				// exit search input mode if we have results
 				if len(m.search_results) > 0 {
 					m.search_mode = false
 					m.page = 0
@@ -174,7 +173,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.search_input_pos > 0 {
 					m.search_query = m.search_query[:m.search_input_pos-1] + m.search_query[m.search_input_pos:]
 					m.search_input_pos--
-					// Perform live search as we edit
+					// perform live search as we edit, because instant gratification
 					m.search_results = m.perform_search(m.search_query)
 				}
 
@@ -194,7 +193,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.search_query = m.search_query[:m.search_input_pos] + string(r) + m.search_query[m.search_input_pos:]
 						m.search_input_pos++
 					}
-					// Perform live search as we type
+					// perform live search as we type, because typing alone is too easy
 					m.search_results = m.perform_search(m.search_query)
 				}
 			}
@@ -208,7 +207,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "ctrl+r":
-			// Refresh current view (inbox or sent)
+			// refresh current view (inbox or sent), like shaking the mailbox
 			if m.fetch_user != "" && m.fetch_pass != "" {
 				if m.view_mode == "sent" {
 					m.sent_loading = true
@@ -220,18 +219,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "ctrl+f":
-			// Enter search mode
+			// enter search mode, for when scrolling is too much work
 			m.search_mode = true
 			m.search_query = ""
 			m.search_input_pos = 0
 			return m, nil
 
 		case "tab":
-			// Toggle between inbox and sent views
+			// toggle between inbox and sent views, because options
 			if !m.viewing_email && !m.viewing_attachments && !m.search_mode {
 				if m.view_mode == "inbox" {
 					m.view_mode = "sent"
-					// Load sent emails if not loaded yet
+					// load sent emails if not loaded yet
 					if len(m.sent_emails) == 0 && !m.sent_loading && m.fetch_user != "" && m.fetch_pass != "" {
 						m.sent_loading = true
 						return m, FetchSentEmailsCmd(m.fetch_user, m.fetch_pass, m.fetch_max)
@@ -239,7 +238,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.view_mode = "inbox"
 				}
-				// Reset to first page when switching views
+				// reset to first page when switching views, because consistency
 				m.page = 0
 				m.selected = 0
 			}
@@ -251,7 +250,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.selected_attachment--
 				}
 			} else if m.viewing_email {
-				// Scroll up in email content
+				// scroll up in email content, because walls of text
 				if m.email_scroll_offset > 0 {
 					m.email_scroll_offset--
 				}
@@ -269,7 +268,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.selected_attachment++
 				}
 			} else if m.viewing_email {
-				// Scroll down in email content
+				// scroll down in email content, because walls of text
 				email := m.get_selected_email()
 				if email != nil {
 					wrappedLines := m.wrap_body_lines(email.Body)
@@ -287,7 +286,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else {
 				current_emails := m.get_current_emails()
-				// Calculate how many emails are on the current page
+				// calculate how many emails are on the current page
 				start := m.page * m.emails_per_page
 				end := start + m.emails_per_page
 				if end > len(current_emails) {
@@ -295,15 +294,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				emails_on_page := end - start
 
-				// Check if we can move down within the current page
+				// check if we can move down within the current page
 				if m.selected < emails_on_page-1 {
 					m.selected++
 				} else if (m.page+1)*m.emails_per_page < len(current_emails) {
-					// Move to next page
+					// move to next page
 					m.page++
 					m.selected = 0
 				} else if m.should_load_more() {
-					// Try to load more emails
+					// try to load more emails
 					m.fetching_more = true
 					return m, FetchMoreEmailsCmd(m.fetch_user, m.fetch_pass, m.emails_offset, m.fetch_max)
 				}
@@ -322,7 +321,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.page++
 				m.selected = 0
 			} else if m.should_load_more() {
-				// Try to load more emails
+				// try to load more emails
 				m.fetching_more = true
 				return m, FetchMoreEmailsCmd(m.fetch_user, m.fetch_pass, m.emails_offset, m.fetch_max)
 			}
@@ -330,16 +329,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if !m.viewing_email && len(m.get_current_emails()) > 0 {
 				m.viewing_email = true
-				m.email_scroll_offset = 0 // Reset scroll when opening email
+				m.email_scroll_offset = 0 // reset scroll when opening email
 			} else if m.viewing_email && !m.viewing_attachments {
 				m.viewing_email = false
-				m.email_scroll_offset = 0 // Reset scroll when closing email
+				m.email_scroll_offset = 0 // reset scroll when closing email
 			} else if m.viewing_attachments {
 				m.viewing_attachments = false
 			}
 
 		case "a":
-			// Show attachments list when viewing an email
+			// show attachments list when viewing an email
 			if m.viewing_email && !m.viewing_attachments {
 				email := m.get_selected_email()
 				if email != nil && len(email.Attachments) > 0 {
@@ -349,7 +348,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "d":
-			// Download selected attachment
+			// download selected attachment, if you can find it
 			if m.viewing_attachments {
 				email := m.get_selected_email()
 				if email != nil && m.selected_attachment >= 0 && m.selected_attachment < len(email.Attachments) {
@@ -370,9 +369,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewing_attachments = false
 			} else if m.viewing_email {
 				m.viewing_email = false
-				m.email_scroll_offset = 0 // Reset scroll when exiting email
+				m.email_scroll_offset = 0 // reset scroll when exiting email
 			} else if len(m.search_results) > 0 {
-				// Clear search results and return to full inbox
+				// clear search results and return to full inbox
 				m.search_results = []Email{}
 				m.search_query = ""
 				m.page = 0
@@ -381,7 +380,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Handle async fetch completion
+	// handle async fetch completion, because networking is a thing
 	switch v := msg.(type) {
 	case EmailsFetchedMsg:
 		m.Loading = false
@@ -393,10 +392,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// ensure sorted newest-first
 			sort.Slice(m.emails, func(i, j int) bool { return m.emails[i].ID > m.emails[j].ID })
 			m.contact_history = contacts.Load()
-			// Reset to first page
+			// reset to first page
 			m.page = 0
 			m.selected = 0
-			// Update offset for next fetch
+			// update offset for next fetch
 			m.emails_offset = len(m.emails)
 		}
 
@@ -404,11 +403,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Loading = false
 		m.fetching_more = false
 		if v.Err == nil && len(v.Emails) > 0 {
-			// Append new emails to existing list
+			// append new emails to existing list
 			m.emails = append(m.emails, v.Emails...)
-			// Re-sort to maintain order
+			// re-sort to maintain order
 			sort.Slice(m.emails, func(i, j int) bool { return m.emails[i].ID > m.emails[j].ID })
-			// Update offset for next fetch
+			// update offset for next fetch
 			m.emails_offset += len(v.Emails)
 		}
 
@@ -425,7 +424,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	// Show download message if active
+	// show download message if active
 	if m.showing_download {
 		messageBox := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -437,20 +436,20 @@ func (m Model) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, messageBox)
 	}
 
-	// Show fetching overlay if loading more emails
+	// show fetching overlay if loading more emails
 	if m.fetching_more {
 		return m.render_with_overlay(m.render_fetching_overlay())
 	}
 
-	// Show search mode
+	// show search mode
 	if m.search_mode {
 		return m.render_search_mode()
 	}
 
-	// Animated title with box
+	// animated title with box
 	title := m.title_animator.Render()
 
-	// View mode indicator
+	// view mode indicator
 	modeText := "INBOX"
 	modeColor := lipgloss.Color("4")
 	if m.view_mode == "sent" {
@@ -508,7 +507,7 @@ func (m Model) get_footer_text() string {
 	return "↑/k up • ↓/j down • h/l prev/next page • enter view • tab inbox/sent • ctrl+f search • ctrl+r refresh • ctrl+q quit"
 }
 
-// render_email_list shows the current page of emails
+// render_email_list shows the current page of emails, nothing fancy
 func (m Model) render_email_list() string {
 	current_emails := m.get_current_emails()
 
@@ -521,24 +520,24 @@ func (m Model) render_email_list() string {
 	emails := current_emails[start:end]
 	var lines string
 	for i, email := range emails {
-		// Check if this is from a known contact
+		// check if this is from a known contact
 		isKnown := m.contact_history != nil && m.contact_history.IsKnown(email.From)
 
-		// Calculate available width for email line
-		// Account for: "  From: " (8) + " | Subject: " (12) + star (2 if known) + padding
+		// calculate available width for email line
+		// account for labels, star, and padding, because math again
 		availableWidth := m.width - 25
 		if isKnown {
-			availableWidth -= 2 // Account for star
+			availableWidth -= 2 // account for star
 		}
 		if availableWidth < 20 {
 			availableWidth = 20
 		}
 
-		// Split available width: 40% for From, 60% for Subject
+		// split available width: 40% for from, 60% for subject
 		fromWidth := availableWidth * 40 / 100
 		subjectWidth := availableWidth - fromWidth
 
-		// Truncate From field
+		// truncate from field
 		fromField := email.From
 		if len(fromField) > fromWidth {
 			if fromWidth > 3 {
@@ -548,7 +547,7 @@ func (m Model) render_email_list() string {
 			}
 		}
 
-		// Truncate Subject field
+		// truncate subject field
 		subjectField := email.Subject
 		if len(subjectField) > subjectWidth {
 			if subjectWidth > 3 {
@@ -561,18 +560,18 @@ func (m Model) render_email_list() string {
 		line := fmt.Sprintf("  From: %s | Subject: %s", fromField, subjectField)
 
 		if i == m.selected {
-			// Selected email style
+			// selected email style, fancy highlight
 			style := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("7")).
 				Background(lipgloss.Color("4"))
 
 			if isKnown {
-				// Add an indicator for known contacts when selected
+				// add an indicator for known contacts when selected
 				line = "★ " + line
 			}
 			line = style.Render(line)
 		} else if isKnown {
-			// Known contact - highlight in yellow
+			// known contact, highlight in yellow
 			line = "★ " + line
 			style := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("226")) // yellow
@@ -587,7 +586,7 @@ func (m Model) render_email_list() string {
 		lines += line
 	}
 
-	// Add page indicator
+	// add page indicator
 	totalPages := (len(current_emails) + m.emails_per_page - 1) / m.emails_per_page
 	if totalPages > 1 {
 		lines += fmt.Sprintf("\n\nPage %d/%d", m.page+1, totalPages)
@@ -605,7 +604,7 @@ func (m Model) get_selected_email() *Email {
 	return nil
 }
 
-// wrap_body_lines wraps email body lines to fit within the display width
+// wrap_body_lines wraps email body lines to fit within the display width, mostly
 func (m Model) wrap_body_lines(body string) []string {
 	contentWidth := m.width - 14 // width - 10 for box, - 4 for border and padding
 	if contentWidth < 20 {
@@ -621,8 +620,8 @@ func (m Model) wrap_body_lines(body string) []string {
 			continue
 		}
 
-		// Word-based wrapping to preserve URLs and words
-		words := strings.Fields(line) // Split on whitespace
+		// word-based wrapping to preserve urls and words
+		words := strings.Fields(line) // split on whitespace
 		if len(words) == 0 {
 			wrappedLines = append(wrappedLines, line)
 			continue
@@ -630,7 +629,7 @@ func (m Model) wrap_body_lines(body string) []string {
 
 		currentLine := ""
 		for _, word := range words {
-			// Check if this word looks like a URL (with or without wrapping characters)
+			// check if this word looks like a url (with or without wrapping characters)
 			isURL := strings.HasPrefix(word, "http://") ||
 				strings.HasPrefix(word, "https://") ||
 				strings.HasPrefix(word, "<http://") ||
@@ -641,7 +640,7 @@ func (m Model) wrap_body_lines(body string) []string {
 				strings.HasPrefix(word, "(https://") ||
 				strings.Contains(word, "://")
 
-			// If word is too long and is a URL, put it on its own line
+			// if word is too long and is a url, put it on its own line
 			if isURL && len(word) > contentWidth {
 				if currentLine != "" {
 					wrappedLines = append(wrappedLines, currentLine)
@@ -651,7 +650,7 @@ func (m Model) wrap_body_lines(body string) []string {
 				continue
 			}
 
-			// Try to add word to current line
+			// try to add word to current line
 			testLine := currentLine
 			if testLine != "" {
 				testLine += " " + word
@@ -662,11 +661,11 @@ func (m Model) wrap_body_lines(body string) []string {
 			if len(testLine) <= contentWidth {
 				currentLine = testLine
 			} else {
-				// Current line is full, start a new line
+				// current line is full, start a new line
 				if currentLine != "" {
 					wrappedLines = append(wrappedLines, currentLine)
 				}
-				// If the word itself is too long and not a URL, break it
+				// if the word itself is too long and not a url, break it
 				if len(word) > contentWidth && !isURL {
 					for len(word) > contentWidth {
 						wrappedLines = append(wrappedLines, word[:contentWidth])
@@ -679,7 +678,7 @@ func (m Model) wrap_body_lines(body string) []string {
 			}
 		}
 
-		// Add any remaining text
+		// add any remaining text
 		if currentLine != "" {
 			wrappedLines = append(wrappedLines, currentLine)
 		}
@@ -701,16 +700,16 @@ func (m Model) get_current_emails() []Email {
 
 // should_load_more checks if we should load the next batch of emails
 func (m Model) should_load_more() bool {
-	// Don't load more in sent mode or search mode
+	// don't load more in sent mode or search mode
 	if len(m.search_results) > 0 || m.view_mode == "sent" || m.fetch_user == "" || m.fetch_pass == "" {
 		return false
 	}
-	// Load more if we're at the end of our current emails
+	// load more if we're at the end of our current emails
 	total_loaded := len(m.emails)
 	return total_loaded == m.emails_offset && total_loaded > 0
 }
 
-// perform_search filters emails by subject and body
+// perform_search filters emails by subject and body, because search is life
 func (m Model) perform_search(query string) []Email {
 	if query == "" {
 		return []Email{}
@@ -719,7 +718,7 @@ func (m Model) perform_search(query string) []Email {
 	query_lower := strings.ToLower(query)
 	var results []Email
 
-	// Search in the correct email list based on view mode
+	// search in the correct email list based on view mode
 	emailsToSearch := m.emails
 	if m.view_mode == "sent" {
 		emailsToSearch = m.sent_emails
@@ -735,27 +734,27 @@ func (m Model) perform_search(query string) []Email {
 	return results
 }
 
-// render_search_mode renders the search input UI
+// render_search_mode renders the search input ui, try not to blink
 func (m Model) render_search_mode() string {
 	title := m.title_animator.Render()
 
-	// Build search input with cursor
+	// build search input with cursor
 	input := m.search_query
 	cursor_pos := m.search_input_pos
 
-	// Split input into parts: before cursor and after cursor
+	// split input into parts: before cursor and after cursor
 	before := input[:cursor_pos]
 	after := ""
 	if cursor_pos < len(input) {
 		after = input[cursor_pos:]
 	}
 
-	// Create cursor style
+	// create cursor style
 	cursorStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color("7")).
 		Foreground(lipgloss.Color("0"))
 
-	// Show cursor as next character or space
+	// show cursor as next character or space
 	var cursorChar string
 	if cursor_pos < len(input) {
 		cursorChar = string([]rune(input)[cursor_pos])
@@ -768,7 +767,7 @@ func (m Model) render_search_mode() string {
 		searchInput = before + cursorStyle.Render(" ")
 	}
 
-	// Build result display
+	// build result display
 	var resultText string
 	if m.search_query == "" {
 		resultText = "Start typing to search emails by subject or body..."
@@ -777,7 +776,7 @@ func (m Model) render_search_mode() string {
 	} else {
 		resultText = fmt.Sprintf("Found %d email(s) - press Enter to view results, Esc to cancel", len(m.search_results))
 
-		// Show first few results
+		// show first few results, because paging is effort
 		resultText += "\n\nPreview:"
 		for i, email := range m.search_results {
 			if i >= 5 {
@@ -815,13 +814,13 @@ func max(a, b int) int {
 
 // render_email_view renders a single email with attachment indicators
 func (m Model) render_email_view(email *Email) string {
-	// Calculate the content width (accounting for border and padding)
+	// calculate the content width (accounting for border and padding)
 	contentWidth := m.width - 14 // width - 10 for box, - 4 for border and padding
 	if contentWidth < 20 {
 		contentWidth = 20
 	}
 
-	// Styles for different sections
+	// styles for different sections
 	headerStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("4")).
@@ -840,34 +839,34 @@ func (m Model) render_email_view(email *Email) string {
 		Padding(0, 1).
 		MaxWidth(m.width - 10)
 
-	// From header - truncate if needed
+	// from header - truncate if needed
 	fromText := "From: " + email.From
 	if len(fromText) > contentWidth {
 		fromText = fromText[:contentWidth-3] + "..."
 	}
 	fromBox := headerStyle.Render(fromText)
 
-	// Subject header - truncate if needed
+	// subject header - truncate if needed
 	subjectText := "Subject: " + email.Subject
 	if len(subjectText) > contentWidth {
 		subjectText = subjectText[:contentWidth-3] + "..."
 	}
 	subjectBox := subjectStyle.Render(subjectText)
 
-	// Body - handle scrolling with wrapped lines
+	// body - handle scrolling with wrapped lines
 	wrappedLines := m.wrap_body_lines(email.Body)
 
-	// Calculate available height for body (total height - title - from - subject - footer - borders)
-	availableHeight := m.height - 15 // Adjust based on UI layout
+	// calculate available height for body (total height - title - from - subject - footer - borders)
+	availableHeight := m.height - 15 // adjust based on ui layout
 	if availableHeight < 5 {
 		availableHeight = 5
 	}
 
-	// Apply scroll offset
+	// apply scroll offset
 	startLine := m.email_scroll_offset
 	endLine := startLine + availableHeight
 
-	// Clamp to valid range
+	// clamp to valid range
 	if startLine < 0 {
 		startLine = 0
 	}
@@ -883,7 +882,7 @@ func (m Model) render_email_view(email *Email) string {
 
 	visibleBody := strings.Join(wrappedLines[startLine:endLine], "\n")
 
-	// Add scroll indicators on a separate line
+	// add scroll indicators on a separate line
 	scrollInfo := ""
 	if len(wrappedLines) > availableHeight {
 		scrollInfo = fmt.Sprintf("\n\n[%d-%d of %d lines]", startLine+1, endLine, len(wrappedLines))
@@ -891,10 +890,10 @@ func (m Model) render_email_view(email *Email) string {
 
 	bodyBox := bodyStyle.Render(visibleBody + scrollInfo)
 
-	// Attachment indicator
+	// attachment indicator
 	attachmentInfo := ""
 	if len(email.Attachments) > 0 {
-		// Check unicode support
+		// check unicode support
 		sett := settings.InitialModel()
 		unicode_support := sett.GetSetting("unicode support") == "y"
 		attachment_icon := "[A]"
@@ -922,7 +921,7 @@ func (m Model) render_attachment_list() string {
 		return "No attachments available."
 	}
 
-	// Check unicode support
+	// check unicode support
 	sett := settings.InitialModel()
 	unicode_support := sett.GetSetting("unicode support") == "y"
 	attachment_icon := "[A]"
@@ -945,7 +944,7 @@ func (m Model) render_attachment_list() string {
 	view.WriteString(titleStyle.Render("Attachments") + "\n\n")
 
 	for i, att := range email.Attachments {
-		// Format size
+		// format size
 		size := format_size(len(att.Data))
 		line := fmt.Sprintf("  %s %s (%s)", attachment_icon, att.Filename, size)
 
@@ -961,11 +960,11 @@ func (m Model) render_attachment_list() string {
 
 // download_attachment saves an attachment to the configured download folder
 func (m *Model) download_attachment(att Attachment) (string, error) {
-	// Get download path from settings
+	// get download path from settings
 	sett := settings.InitialModel()
 	download_path := sett.GetSetting("default attachment download path")
 
-	// If not set, use Downloads folder as default
+	// if not set, use Downloads folder as default
 	if download_path == "" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -974,7 +973,7 @@ func (m *Model) download_attachment(att Attachment) (string, error) {
 		download_path = filepath.Join(homeDir, "Downloads")
 	}
 
-	// Expand tilde in path
+	// expand tilde in path
 	if strings.HasPrefix(download_path, "~/") {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -989,15 +988,15 @@ func (m *Model) download_attachment(att Attachment) (string, error) {
 		download_path = homeDir
 	}
 
-	// Create download directory if it doesn't exist
+	// create download directory if it doesn't exist
 	if err := os.MkdirAll(download_path, 0755); err != nil {
 		return "", fmt.Errorf("could not create download directory: %v", err)
 	}
 
-	// Check if file exists and add number suffix if needed
+	// check if file exists and add number suffix if needed
 	filePath := filepath.Join(download_path, att.Filename)
 	if _, err := os.Stat(filePath); err == nil {
-		// File exists, add number suffix
+		// file exists, add number suffix
 		ext := filepath.Ext(att.Filename)
 		nameWithoutExt := strings.TrimSuffix(att.Filename, ext)
 		counter := 1
@@ -1010,7 +1009,7 @@ func (m *Model) download_attachment(att Attachment) (string, error) {
 		}
 	}
 
-	// Write file
+	// write file
 	if err := os.WriteFile(filePath, att.Data, 0644); err != nil {
 		return "", fmt.Errorf("could not write file: %v", err)
 	}
@@ -1034,29 +1033,29 @@ func format_size(bytes int) string {
 
 // render_loading_spinner renders a spinning wheel animation for loading state
 func (m Model) render_loading_spinner() string {
-	// Check unicode support
+	// check unicode support
 	sett := settings.InitialModel()
 	unicode_support := sett.GetSetting("unicode support") == "y"
 
 	var frame string
 	if unicode_support {
-		// Spinner frames using Unicode characters
+		// spinner frames using unicode characters
 		spinners := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 		frame = spinners[m.spinner_frame%len(spinners)]
 	} else {
-		// ASCII spinner frames
+		// ascii spinner frames
 		spinners := []string{"-", "\\", "|", "/"}
 		frame = spinners[m.spinner_frame%len(spinners)]
 	}
 
-	// Style the spinner with cyan color
+	// style the spinner with cyan color
 	spinnerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("51")).
 		Bold(true)
 
 	message := spinnerStyle.Render(frame) + " Fetching emails..."
 
-	// Center the message
+	// center the message
 	centerStyle := lipgloss.NewStyle().
 		Padding(2, 0)
 
@@ -1065,22 +1064,22 @@ func (m Model) render_loading_spinner() string {
 
 // render_fetching_overlay creates an overlay box for loading more emails
 func (m Model) render_fetching_overlay() string {
-	// Check unicode support
+	// check unicode support
 	sett := settings.InitialModel()
 	unicode_support := sett.GetSetting("unicode support") == "y"
 
 	var frame string
 	if unicode_support {
-		// Spinner frames using Unicode characters
+		// spinner frames using unicode characters
 		spinners := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 		frame = spinners[m.spinner_frame%len(spinners)]
 	} else {
-		// ASCII spinner frames
+		// ascii spinner frames
 		spinners := []string{"-", "\\", "|", "/"}
 		frame = spinners[m.spinner_frame%len(spinners)]
 	}
 
-	// Style the spinner with cyan color
+	// style the spinner with cyan color
 	spinnerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("51")).
 		Bold(true)
@@ -1092,14 +1091,14 @@ func (m Model) render_fetching_overlay() string {
 
 // render_with_overlay renders the normal view with an overlay box
 func (m Model) render_with_overlay(overlay string) string {
-	// Create overlay box
+	// create overlay box
 	overlayBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		Padding(1).
 		BorderForeground(lipgloss.Color("51")).
 		Render(overlay)
 
-	// Place overlay on top of main view
+	// place overlay on top of main view
 	return lipgloss.Place(
 		m.width,
 		m.height,

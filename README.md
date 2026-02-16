@@ -6,7 +6,14 @@
 
 ## About
 
-**Cunc** is a powerful, terminal-based email client for Linux that brings the efficiency of command-line interfaces to email management. Built with Go and the Bubble Tea TUI framework, Cunc offers a sleek, keyboard-driven interface for reading, composing, and managing emails without leaving your terminal.
+**Cunc** is a small, terminal-based email client for Linux built as a fun side project by an up-and-coming developer exploring Go and terminal UI design.
+
+It’s my first open source app, mostly an experiment to learn, tinker, and see how far I could push a command-line email workflow. It’s not meant to compete with polished email clients or be taken too seriously. It’s just something I enjoyed building.
+
+Cunc lets you connect to an email account over IMAP, read and write messages from your terminal, switch between inbox and sent mail, and handle basics like drafts, attachments, and simple search. It also converts HTML emails into readable plain text and keeps everything keyboard-driven.
+
+At its core, Cunc is a learning project, a playground for experimenting with TUIs, email handling, and building software in public. If you find it useful, that’s awesome. If not, it was still worth building.
+
 
 ### Key Features
 

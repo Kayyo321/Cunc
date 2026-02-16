@@ -14,15 +14,13 @@ import (
 	"github.com/emersion/go-message/mail"
 )
 
-// FetchLatest connects to Gmail IMAP and returns up to `max` most recent emails.
-// username should be the user's full gmail address and password should be their
-// account password or an app password when 2FA is enabled.
+// fetchlatest connects to gmail imap and grabs the newest emails. fancy.
+// username should be the full address and password is either normal or app-only.
 func FetchLatest(username, password string, max int) ([]Email, error) {
 	return FetchWithOffset(username, password, 0, max)
 }
 
-// FetchWithOffset connects to Gmail IMAP and returns emails starting from offset.
-// offset = 0 gets the newest emails, offset > 0 skips that many of the newest emails.
+// fetchwithoffset pulls emails starting at the offset, because paging is a thing.
 func FetchWithOffset(username, password string, offset, max int) ([]Email, error) {
 	c, err := imapclient.DialTLS("imap.gmail.com:993", &tls.Config{ServerName: "imap.gmail.com"})
 	if err != nil {
@@ -43,18 +41,14 @@ func FetchWithOffset(username, password string, offset, max int) ([]Email, error
 		return []Email{}, nil
 	}
 
-	// Compute sequence range starting from offset into the newest emails
-	// mbox.Messages is the highest (newest) message number
-	// offset = 0 starts at the newest, offset = 1 skips the newest, etc.
+	// compute sequence range from the newest set, because math.
 	var from uint32 = 1
 	var to = mbox.Messages - uint32(offset)
 
 	if to <= 0 {
-		// offset is beyond the available emails
 		return []Email{}, nil
 	}
 
-	// calc the from position
 	if to-uint32(max)+1 > 1 {
 		from = to - uint32(max) + 1
 	}
@@ -79,7 +73,7 @@ func FetchWithOffset(username, password string, offset, max int) ([]Email, error
 
 		env := msg.Envelope
 
-		// Default body
+		// start empty, as usual
 		body_str := ""
 		html_body := ""
 		var attachments []Attachment
@@ -108,7 +102,7 @@ func FetchWithOffset(username, password string, offset, max int) ([]Email, error
 							body_str = string(b)
 						}
 					case *mail.AttachmentHeader:
-						// Extract attachment
+						// grab attachment
 						filename, _ := h.Filename()
 						ctype, _, _ := h.ContentType()
 						data, err := io.ReadAll(p.Body)
@@ -124,7 +118,7 @@ func FetchWithOffset(username, password string, offset, max int) ([]Email, error
 			}
 		}
 
-		// If we don't have text/plain but have HTML, convert HTML to text
+		// no plain text, so we fake it
 		if body_str == "" && html_body != "" {
 			body_str = htmlToText(html_body)
 		}
@@ -155,13 +149,13 @@ func FetchWithOffset(username, password string, offset, max int) ([]Email, error
 		return results, fmt.Errorf("fetch: %w", err)
 	}
 
-	// Sort newest first (higher seqnum = newer)
+	// newest first, because obviously
 	sort.Slice(results, func(i, j int) bool { return results[i].ID > results[j].ID })
 
 	return results, nil
 }
 
-// FetchFromFolder fetches emails from a specific IMAP folder
+// fetchfromfolder grabs emails from a specific imap folder, no surprises
 func FetchFromFolder(username, password, folder string, offset, max int) ([]Email, error) {
 	c, err := imapclient.DialTLS("imap.gmail.com:993", &tls.Config{ServerName: "imap.gmail.com"})
 	if err != nil {
@@ -182,7 +176,7 @@ func FetchFromFolder(username, password, folder string, offset, max int) ([]Emai
 		return []Email{}, nil
 	}
 
-	// Compute sequence range starting from offset into the newest emails
+	// compute sequence range from the newest emails, because more math
 	var from uint32 = 1
 	var to = mbox.Messages - uint32(offset)
 
@@ -214,7 +208,7 @@ func FetchFromFolder(username, password, folder string, offset, max int) ([]Emai
 
 		env := msg.Envelope
 
-		// Default body
+		// start empty, again
 		body_str := ""
 		html_body := ""
 		var attachments []Attachment
@@ -258,7 +252,7 @@ func FetchFromFolder(username, password, folder string, offset, max int) ([]Emai
 			}
 		}
 
-		// If we don't have text/plain but have HTML, convert HTML to text
+		// no plain text, so we fake it
 		if body_str == "" && html_body != "" {
 			body_str = htmlToText(html_body)
 		}
@@ -289,37 +283,37 @@ func FetchFromFolder(username, password, folder string, offset, max int) ([]Emai
 		return results, fmt.Errorf("fetch: %w", err)
 	}
 
-	// Sort newest first (higher seqnum = newer)
+	// newest first, because obviously
 	sort.Slice(results, func(i, j int) bool { return results[i].ID > results[j].ID })
 
 	return results, nil
 }
 
-// FetchSentEmails fetches emails from the Sent folder (Gmail uses "[Gmail]/Sent Mail")
+// fetchsentemails fetches emails from the sent folder (gmail uses "[gmail]/sent mail")
 func FetchSentEmails(username, password string, max int) ([]Email, error) {
 	return FetchFromFolder(username, password, "[Gmail]/Sent Mail", 0, max)
 }
 
-// EmailsFetchedMsg is sent back to a Bubble Tea program when FetchEmailsCmd completes.
+// emailsfetchedmsg is sent back to bubble tea when fetching is done
 type EmailsFetchedMsg struct {
 	Emails []Email
 	Err    error
 }
 
-// EmailsFetchedWithOffsetMsg is sent when fetching more emails with an offset
+// emailsfetchedwithoffsetmsg is sent when fetching more emails with an offset
 type EmailsFetchedWithOffsetMsg struct {
 	Emails []Email
 	Offset int
 	Err    error
 }
 
-// SentEmailsFetchedMsg is sent when fetching sent emails
+// sentemailsfetchedmsg is sent when fetching sent emails
 type SentEmailsFetchedMsg struct {
 	Emails []Email
 	Err    error
 }
 
-// FetchEmailsCmd returns a tea.Cmd that fetches recent emails and returns an EmailsFetchedMsg.
+// fetcheemailscmd returns a tea.cmd that fetches recent emails
 func FetchEmailsCmd(username, password string, max int) tea.Cmd {
 	return func() tea.Msg {
 		emails, err := FetchLatest(username, password, max)
@@ -327,7 +321,7 @@ func FetchEmailsCmd(username, password string, max int) tea.Cmd {
 	}
 }
 
-// FetchMoreEmailsCmd returns a tea.Cmd that fetches more emails from a given offset.
+// fetchmoreemailscmd returns a tea.cmd that fetches more emails from an offset
 func FetchMoreEmailsCmd(username, password string, offset, max int) tea.Cmd {
 	return func() tea.Msg {
 		emails, err := FetchWithOffset(username, password, offset, max)
@@ -335,7 +329,7 @@ func FetchMoreEmailsCmd(username, password string, offset, max int) tea.Cmd {
 	}
 }
 
-// FetchSentEmailsCmd returns a tea.Cmd that fetches sent emails
+// fetchsentemailscmd returns a tea.cmd that fetches sent emails
 func FetchSentEmailsCmd(username, password string, max int) tea.Cmd {
 	return func() tea.Msg {
 		emails, err := FetchSentEmails(username, password, max)
@@ -343,15 +337,15 @@ func FetchSentEmailsCmd(username, password string, max int) tea.Cmd {
 	}
 }
 
-// htmlToText converts HTML to plain text by stripping tags and converting common elements
+// htmltotext converts html to plain text, because tags are annoying here
 func htmlToText(html string) string {
-	// Remove script and style tags and their content
+	// remove script and style tags, nobody wants that in email
 	reScript := regexp.MustCompile(`(?i)<script[^>]*>.*?</script>`)
 	html = reScript.ReplaceAllString(html, "")
 	reStyle := regexp.MustCompile(`(?i)<style[^>]*>.*?</style>`)
 	html = reStyle.ReplaceAllString(html, "")
 
-	// Convert line breaks
+	// convert line breaks, because html can't help itself
 	reBr := regexp.MustCompile(`(?i)<br\s*/?>`)
 	html = reBr.ReplaceAllString(html, "\n")
 	reP := regexp.MustCompile(`(?i)</p>`)
@@ -359,15 +353,15 @@ func htmlToText(html string) string {
 	reDiv := regexp.MustCompile(`(?i)</div>`)
 	html = reDiv.ReplaceAllString(html, "\n")
 
-	// Convert links to show URL
+	// convert links to show url, so you know where you're going
 	reLink := regexp.MustCompile(`(?i)<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>`)
 	html = reLink.ReplaceAllString(html, "$2 [$1]")
 
-	// Remove all other HTML tags
+	// remove all other html tags, because chaos
 	reTag := regexp.MustCompile(`<[^>]+>`)
 	text := reTag.ReplaceAllString(html, "")
 
-	// Decode common HTML entities
+	// decode common html entities, because ampersands are not that cute
 	text = strings.ReplaceAll(text, "&nbsp;", " ")
 	text = strings.ReplaceAll(text, "&lt;", "<")
 	text = strings.ReplaceAll(text, "&gt;", ">")
@@ -376,7 +370,7 @@ func htmlToText(html string) string {
 	text = strings.ReplaceAll(text, "&#39;", "'")
 	text = strings.ReplaceAll(text, "&apos;", "'")
 
-	// Clean up excessive whitespace
+	// clean up excessive whitespace, because no one asked for it
 	reWhitespace := regexp.MustCompile(`\n\s*\n\s*\n`)
 	text = reWhitespace.ReplaceAllString(text, "\n\n")
 
