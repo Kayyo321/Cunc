@@ -24,6 +24,9 @@ var default_settings = map[string]string{
 	"should delete draft on send": "n",
 	"max typos displayed":         "3",
 	"prevent send with typos":     "y",
+
+	"_header_Paths":                    "",
+	"default attachment download path": "~/Downloads",
 }
 
 // field_order defines the exact order in which headers and settings appear
@@ -38,6 +41,9 @@ var field_order = []string{
 	"should delete draft on send",
 	"max typos displayed",
 	"prevent send with typos",
+
+	"_header_Paths",
+	"default attachment download path",
 }
 
 // sensitive_fields marks which settings should not be saved to normal JSON

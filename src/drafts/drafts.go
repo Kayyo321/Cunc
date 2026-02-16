@@ -12,10 +12,11 @@ import (
 )
 
 type Draft struct {
-	ID      string
-	To      string
-	Subject string
-	Body    string
+	ID          string
+	To          string
+	Subject     string
+	Body        string
+	Attachments []string
 }
 
 type Model struct {
@@ -189,17 +190,29 @@ func load_drafts() []Draft {
 			continue
 		}
 
-		var draft_data map[string]string
+		var draft_data map[string]interface{}
 		if err := json.Unmarshal(data, &draft_data); err != nil {
 			continue
 		}
 
 		draft_id := entry.Name()[:len(entry.Name())-5] // Remove .json extension
+
+		// Extract attachments if present
+		var attachments []string
+		if attachmentsData, ok := draft_data["attachments"].([]interface{}); ok {
+			for _, a := range attachmentsData {
+				if str, ok := a.(string); ok {
+					attachments = append(attachments, str)
+				}
+			}
+		}
+
 		drafts = append(drafts, Draft{
-			ID:      draft_id,
-			To:      draft_data["to"],
-			Subject: draft_data["subject"],
-			Body:    draft_data["body"],
+			ID:          draft_id,
+			To:          getStringField(draft_data, "to"),
+			Subject:     getStringField(draft_data, "subject"),
+			Body:        getStringField(draft_data, "body"),
+			Attachments: attachments,
 		})
 	}
 
@@ -230,4 +243,11 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func getStringField(data map[string]interface{}, key string) string {
+	if val, ok := data[key].(string); ok {
+		return val
+	}
+	return ""
 }

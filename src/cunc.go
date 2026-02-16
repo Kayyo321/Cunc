@@ -41,7 +41,7 @@ func view_drafts() {
 		if drafts_model.Action == "select" && drafts_model.GetSelectedDraft() != nil {
 			draft := drafts_model.GetSelectedDraft()
 			// Load the selected draft in the editor
-			editor_model := editor.LoadDraft(draft.ID, draft.To, draft.Subject, draft.Body)
+			editor_model := editor.LoadDraft(draft.ID, draft.To, draft.Subject, draft.Body, draft.Attachments)
 			editor_program := tea.NewProgram(editor_model)
 			if _, err := editor_program.Run(); err != nil {
 				os.Exit(1)
