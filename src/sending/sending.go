@@ -15,7 +15,7 @@ func Send(to, subject, body string) error {
 
 	senderEmail := sett.GetSetting("email")
 	senderPassword := sett.GetSetting("password")
-	appPassword := sett.GetSetting("2fa-app-password")
+	appPassword := sett.GetSetting("2fa app-password")
 
 	if senderEmail == "" {
 		return fmt.Errorf("sender email not configured in settings")
