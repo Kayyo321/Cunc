@@ -3,10 +3,13 @@ package editor
 import (
 	"cunc/src/contacts"
 	"cunc/src/sending"
+	"cunc/src/settings"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -27,10 +30,22 @@ type Model struct {
 	confirming_send bool
 
 	// Autocomplete fields
-	contactHistory  *contacts.ContactHistory
-	suggestions     []string
-	selectedSugg    int
-	showingSugg     bool
+	contactHistory *contacts.ContactHistory
+	suggestions    []string
+	selectedSugg   int
+	showingSugg    bool
+
+	// Typo detection fields
+	typos             []string
+	lastTypoCheckTime time.Time
+	typoCheckInterval time.Duration
+	lastSubjectValue  string
+	lastBodyValue     string
+	maxTyposToShow    int
+
+	// Error display
+	lastSendError string
+	showingError  bool
 }
 
 func ComposeFrom(m Model) {
@@ -55,19 +70,35 @@ func InitialModel() Model {
 	body := textarea.New()
 	body.Placeholder = "Write your message..."
 
+	sett := settings.InitialModel()
+	maxTypos := 3 // default
+	if maxTyposStr := sett.GetSetting("max typos displayed"); maxTyposStr != "" {
+		if parsed, err := strconv.Atoi(maxTyposStr); err == nil && parsed > 0 {
+			maxTypos = parsed
+		}
+	}
+
 	return Model{
-		to:              to,
-		subject:         subject,
-		body:            body,
-		focus:           0,
-		width:           80,
-		height:          24,
-		draft_id:        fmt.Sprintf("%d", time.Now().UnixNano()),
-		confirming_send: false,
-		contactHistory:  contacts.Load(),
-		suggestions:     []string{},
-		selectedSugg:    0,
-		showingSugg:     false,
+		to:                to,
+		subject:           subject,
+		body:              body,
+		focus:             0,
+		width:             80,
+		height:            24,
+		draft_id:          fmt.Sprintf("%d", time.Now().UnixNano()),
+		confirming_send:   false,
+		contactHistory:    contacts.Load(),
+		suggestions:       []string{},
+		selectedSugg:      0,
+		showingSugg:       false,
+		typos:             []string{},
+		lastTypoCheckTime: time.Now(),
+		typoCheckInterval: 1 * time.Second,
+		lastSubjectValue:  "",
+		lastBodyValue:     "",
+		maxTyposToShow:    maxTypos,
+		lastSendError:     "",
+		showingError:      false,
 	}
 }
 
@@ -85,19 +116,35 @@ func LoadDraft(draft_id, to, subject, body string) Model {
 	body_input.SetValue(body)
 	body_input.Placeholder = "Write your message..."
 
+	sett := settings.InitialModel()
+	maxTypos := 3 // default
+	if maxTyposStr := sett.GetSetting("max typos displayed"); maxTyposStr != "" {
+		if parsed, err := strconv.Atoi(maxTyposStr); err == nil && parsed > 0 {
+			maxTypos = parsed
+		}
+	}
+
 	return Model{
-		to:              to_input,
-		subject:         subject_input,
-		body:            body_input,
-		focus:           0,
-		width:           80,
-		height:          24,
-		draft_id:        draft_id,
-		confirming_send: false,
-		contactHistory:  contacts.Load(),
-		suggestions:     []string{},
-		selectedSugg:    0,
-		showingSugg:     false,
+		to:                to_input,
+		subject:           subject_input,
+		body:              body_input,
+		focus:             0,
+		width:             80,
+		height:            24,
+		draft_id:          draft_id,
+		confirming_send:   false,
+		contactHistory:    contacts.Load(),
+		suggestions:       []string{},
+		selectedSugg:      0,
+		showingSugg:       false,
+		typos:             []string{},
+		lastTypoCheckTime: time.Now(),
+		typoCheckInterval: 1 * time.Second,
+		lastSubjectValue:  subject,
+		lastBodyValue:     body,
+		maxTyposToShow:    maxTypos,
+		lastSendError:     "",
+		showingError:      false,
 	}
 }
 
@@ -156,11 +203,38 @@ func get_draft_dir() string {
 	return filepath.Join(home, ".local", "share", "cunc", "drafts")
 }
 
-func (m *Model) SendEmail() {
+func (m *Model) SendEmail() bool {
+	// Check if we should prevent sending with typos
+	sett := settings.InitialModel()
+	preventWithTypos := sett.GetSetting("prevent send with typos") == "y"
+
+	// Check for typos in subject and body
+	subjectTypos := CheckTypos(m.GetSubject(), m.maxTyposToShow)
+	bodyTypos := CheckTypos(m.GetBody(), m.maxTyposToShow)
+	hasTypos := len(subjectTypos) > 0 || len(bodyTypos) > 0
+
+	if preventWithTypos && hasTypos {
+		m.lastSendError = "Email contains typos in subject/body.\n\nPlease fix them or change\n'prevent send with typos' to 'n' in settings."
+		return false
+	}
+
 	err := sending.Send(m.GetTo(), m.GetSubject(), m.GetBody())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error sending email: %v\n", err)
+		m.lastSendError = "Failed to send email:\n\n" + err.Error()
+		return false
 	}
+
+	// Delete draft if setting is enabled
+	shouldDeleteDraft := sett.GetSetting("should delete draft on send") == "y"
+	if shouldDeleteDraft {
+		draft_dir := get_draft_dir()
+		draft_path := filepath.Join(draft_dir, m.draft_id+".json")
+		if err := os.Remove(draft_path); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not delete draft file: %v\n", err)
+		}
+	}
+
+	return true
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -175,6 +249,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.body.SetHeight(msg.Height - 12)
 
 	case tea.KeyMsg:
+		// Handle error dismissal
+		if m.showingError {
+			m.showingError = false
+			m.lastSendError = ""
+			return m, nil
+		}
+
 		handled := false
 		switch msg.String() {
 
@@ -248,9 +329,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "y":
 			if m.confirming_send {
-				m.SendEmail()
-				fmt.Print("\033[2J")
-				return m, tea.Quit
+				if m.SendEmail() {
+					fmt.Print("\033[2J")
+					return m, tea.Quit
+				}
+				// If send failed, show error
+				m.confirming_send = false
+				m.showingError = true
+				handled = true
 			}
 
 		case "n":
@@ -281,6 +367,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.subject, cmd = m.subject.Update(msg)
 	case 2:
 		m.body, cmd = m.body.Update(msg)
+	}
+
+	// Check for typos periodically if subject or body changed
+	if time.Since(m.lastTypoCheckTime) > m.typoCheckInterval {
+		if m.focus == 1 && m.subject.Value() != m.lastSubjectValue {
+			m.typos = CheckTypos(m.subject.Value(), m.maxTyposToShow)
+			m.lastSubjectValue = m.subject.Value()
+			m.lastTypoCheckTime = time.Now()
+		} else if m.focus == 2 && m.body.Value() != m.lastBodyValue {
+			m.typos = CheckTypos(m.body.Value(), m.maxTyposToShow)
+			m.lastBodyValue = m.body.Value()
+			m.lastTypoCheckTime = time.Now()
+		}
 	}
 
 	return m, cmd
@@ -315,6 +414,17 @@ func (m *Model) updateSuggestions() {
 }
 
 func (m Model) View() string {
+	if m.showingError {
+		error_box := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			Padding(1).
+			Width(60).
+			BorderForeground(lipgloss.Color("1")).
+			Render(m.lastSendError + "\n\n(press any key to dismiss)")
+
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, error_box)
+	}
+
 	if m.confirming_send {
 		confirm_box := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -326,9 +436,9 @@ func (m Model) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirm_box)
 	}
 
-	// Build the content with autocomplete suggestions if showing
-	toField := "To:\n" + m.to.View()
-	
+	// Build the content with autocomplete suggestions and colored cc/bcc if showing
+	toField := "To:\n" + m.buildToFieldWithColors()
+
 	if m.showingSugg && len(m.suggestions) > 0 {
 		suggStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8")).
@@ -342,9 +452,9 @@ func (m Model) View() string {
 		toField += "\n"
 		for i, sugg := range m.suggestions {
 			if i == m.selectedSugg {
-				toField += selectedStyle.Render("→ " + sugg) + "\n"
+				toField += selectedStyle.Render("→ "+sugg) + "\n"
 			} else {
-				toField += suggStyle.Render("  " + sugg) + "\n"
+				toField += suggStyle.Render("  "+sugg) + "\n"
 			}
 		}
 	}
@@ -355,10 +465,22 @@ func (m Model) View() string {
 		Width(m.width - 2).
 		Height(m.height - 6)
 
+	subjectField := m.subject.View()
+	if m.focus == 1 && len(m.typos) > 0 {
+		typoStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("1")) // Red
+		subjectField += "\n" + typoStyle.Render("✗ Typos: "+strings.Join(m.typos, ", "))
+	}
+
+	bodyField := m.body.View()
+	if m.focus == 2 && len(m.typos) > 0 {
+		typoStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("1")) // Red
+		bodyField += "\n" + typoStyle.Render("✗ Typos: "+strings.Join(m.typos, ", "))
+	}
+
 	content := box.Render(
 		toField +
-			"\n\nSubject:\n" + m.subject.View() +
-			"\n\nBody:\n" + m.body.View(),
+			"\n\nSubject:\n" + subjectField +
+			"\n\nBody:\n" + bodyField,
 	)
 
 	footer := lipgloss.NewStyle().
@@ -368,6 +490,133 @@ func (m Model) View() string {
 		Render("ctrl+q quit • tab/shift+tab navigate • ctrl+s save as draft • ctrl+y send email")
 
 	return lipgloss.JoinVertical(lipgloss.Left, content, footer)
+}
+
+func (m Model) buildToFieldWithColors() string {
+	toValue := m.to.Value()
+
+	// If not focused, show with colors; if focused, show editor with colors overlaid
+	if m.focus != 0 {
+		// Not focused on to field, show with colors
+		return m.colorizeToField(toValue)
+	}
+
+	// Focused on to field, show the input box
+	return m.to.View()
+}
+
+func (m Model) colorizeToField(toValue string) string {
+	if toValue == "" {
+		return m.to.View()
+	}
+
+	// If there's no cc: or bcc: markers, just return the value as-is
+	if !strings.Contains(toValue, "cc:") && !strings.Contains(toValue, "bcc:") {
+		return toValue
+	}
+
+	ccStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2"))  // Green
+	bccStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("5")) // Magenta
+
+	var result strings.Builder
+	remaining := toValue
+
+	// Process segments: find cc: and bcc: markers and color accordingly
+	for len(remaining) > 0 {
+		// Look for next cc: or bcc:
+		ccIdx := strings.Index(remaining, "cc:")
+		bccIdx := strings.Index(remaining, "bcc:")
+
+		// Determine which marker comes first
+		var nextIdx int
+		var markerLen int
+		var isCC bool
+
+		switch {
+		case ccIdx == -1 && bccIdx == -1:
+			// No more markers, append the rest
+			result.WriteString(remaining)
+			remaining = ""
+			continue
+		case ccIdx == -1:
+			// Only bcc: found
+			nextIdx = bccIdx
+			markerLen = 4
+			isCC = false
+		case bccIdx == -1:
+			// Only cc: found
+			nextIdx = ccIdx
+			markerLen = 3
+			isCC = true
+		case ccIdx < bccIdx:
+			// cc: comes first
+			nextIdx = ccIdx
+			markerLen = 3
+			isCC = true
+		default:
+			// bcc: comes first
+			nextIdx = bccIdx
+			markerLen = 4
+			isCC = false
+		}
+
+		// Append text before the marker (uncolored)
+		if nextIdx > 0 {
+			result.WriteString(remaining[:nextIdx])
+		}
+
+		// Skip the marker
+		if nextIdx+markerLen > len(remaining) {
+			// Safety check: marker is at the end
+			remaining = remaining[nextIdx:]
+			result.WriteString(remaining)
+			break
+		}
+
+		remaining = remaining[nextIdx+markerLen:]
+
+		// Find where this segment ends (at the next cc:, bcc:, or end of string)
+		nextCCIdx := strings.Index(remaining, "cc:")
+		nextBCCIdx := strings.Index(remaining, "bcc:")
+
+		segmentEnd := len(remaining)
+		if nextCCIdx >= 0 && nextBCCIdx >= 0 {
+			segmentEnd = minInt(nextCCIdx, nextBCCIdx)
+		} else if nextCCIdx >= 0 {
+			segmentEnd = nextCCIdx
+		} else if nextBCCIdx >= 0 {
+			segmentEnd = nextBCCIdx
+		}
+
+		segment := remaining[:segmentEnd]
+		remaining = remaining[segmentEnd:]
+
+		// Trim and colorize the segment
+		trimmedSegment := strings.TrimSpace(segment)
+
+		if trimmedSegment != "" {
+			// Color and append the segment
+			if isCC {
+				result.WriteString(ccStyle.Render("cc: " + trimmedSegment))
+			} else {
+				result.WriteString(bccStyle.Render("bcc: " + trimmedSegment))
+			}
+		}
+
+		// Add spacing between sections if there's more
+		if len(remaining) > 0 {
+			result.WriteString("  ")
+		}
+	}
+
+	return result.String()
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (m Model) GetTo() string {

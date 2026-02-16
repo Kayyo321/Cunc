@@ -18,10 +18,12 @@ var default_settings = map[string]string{
 	"email":            "",
 	"password":         "",
 	"2fa app-password": "",
-	"emails per page":  "10",
 
 	"_header_Preferences":         "",
+	"emails per page":             "40",
 	"should delete draft on send": "n",
+	"max typos displayed":         "3",
+	"prevent send with typos":     "y",
 }
 
 // field_order defines the exact order in which headers and settings appear
@@ -30,10 +32,12 @@ var field_order = []string{
 	"email",
 	"password",
 	"2fa app-password",
-	"emails per page",
 
 	"_header_Preferences",
+	"emails per page",
 	"should delete draft on send",
+	"max typos displayed",
+	"prevent send with typos",
 }
 
 // sensitive_fields marks which settings should not be saved to normal JSON
