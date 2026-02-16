@@ -74,6 +74,11 @@ type Model struct {
 
 	// email view scrolling
 	email_scroll_offset int // vertical scroll offset when viewing an email
+
+	// sent emails view
+	view_mode    string  // "inbox" or "sent"
+	sent_emails  []Email // sent emails list
+	sent_loading bool    // loading sent emails
 }
 
 func InitialModel(emails []Email, emails_per_page int, loading bool, fetch_user, fetch_pass string, fetch_max int) Model {
@@ -109,6 +114,9 @@ func InitialModel(emails []Email, emails_per_page int, loading bool, fetch_user,
 		search_results:      []Email{},
 		search_input_pos:    0,
 		email_scroll_offset: 0,
+		view_mode:           "inbox",
+		sent_emails:         []Email{},
+		sent_loading:        false,
 	}
 }
 
@@ -200,10 +208,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "ctrl+r":
-			// Refresh inbox
+			// Refresh current view (inbox or sent)
 			if m.fetch_user != "" && m.fetch_pass != "" {
-				m.Loading = true
-				return m, FetchEmailsCmd(m.fetch_user, m.fetch_pass, m.fetch_max)
+				if m.view_mode == "sent" {
+					m.sent_loading = true
+					return m, FetchSentEmailsCmd(m.fetch_user, m.fetch_pass, m.fetch_max)
+				} else {
+					m.Loading = true
+					return m, FetchEmailsCmd(m.fetch_user, m.fetch_pass, m.fetch_max)
+				}
 			}
 
 		case "ctrl+f":
@@ -211,6 +224,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.search_mode = true
 			m.search_query = ""
 			m.search_input_pos = 0
+			return m, nil
+
+		case "tab":
+			// Toggle between inbox and sent views
+			if !m.viewing_email && !m.viewing_attachments && !m.search_mode {
+				if m.view_mode == "inbox" {
+					m.view_mode = "sent"
+					// Load sent emails if not loaded yet
+					if len(m.sent_emails) == 0 && !m.sent_loading && m.fetch_user != "" && m.fetch_pass != "" {
+						m.sent_loading = true
+						return m, FetchSentEmailsCmd(m.fetch_user, m.fetch_pass, m.fetch_max)
+					}
+				} else {
+					m.view_mode = "inbox"
+				}
+				// Reset to first page when switching views
+				m.page = 0
+				m.selected = 0
+			}
 			return m, nil
 
 		case "up", "k":
@@ -379,6 +411,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Update offset for next fetch
 			m.emails_offset += len(v.Emails)
 		}
+
+	case SentEmailsFetchedMsg:
+		m.sent_loading = false
+		if v.Err == nil && len(v.Emails) > 0 {
+			m.sent_emails = v.Emails
+			// ensure sorted newest-first
+			sort.Slice(m.sent_emails, func(i, j int) bool { return m.sent_emails[i].ID > m.sent_emails[j].ID })
+		}
 	}
 
 	return m, nil
@@ -410,8 +450,21 @@ func (m Model) View() string {
 	// Animated title with box
 	title := m.title_animator.Render()
 
+	// View mode indicator
+	modeText := "INBOX"
+	modeColor := lipgloss.Color("4")
+	if m.view_mode == "sent" {
+		modeText = "SENT"
+		modeColor = lipgloss.Color("6")
+	}
+	modeIndicator := lipgloss.NewStyle().
+		Foreground(modeColor).
+		Bold(true).
+		Padding(0, 1).
+		Render("[ " + modeText + " ]")
+
 	var body string
-	if m.Loading {
+	if m.Loading || m.sent_loading {
 		body = m.render_loading_spinner()
 	} else if m.viewing_attachments {
 		body = m.render_attachment_list()
@@ -439,7 +492,7 @@ func (m Model) View() string {
 		Width(m.width - 2).
 		Render(m.get_footer_text())
 
-	return lipgloss.JoinVertical(lipgloss.Left, title, box, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, title, modeIndicator, box, footer)
 }
 
 func (m Model) get_footer_text() string {
@@ -452,7 +505,7 @@ func (m Model) get_footer_text() string {
 		}
 		return "↑/k ↓/j scroll • enter/esc back • ctrl+q quit"
 	}
-	return "↑/k up • ↓/j down • h/l prev/next page • enter view • ctrl+f search • ctrl+r refresh • ctrl+q quit"
+	return "↑/k up • ↓/j down • h/l prev/next page • enter view • tab inbox/sent • ctrl+f search • ctrl+r refresh • ctrl+q quit"
 }
 
 // render_email_list shows the current page of emails
@@ -468,10 +521,44 @@ func (m Model) render_email_list() string {
 	emails := current_emails[start:end]
 	var lines string
 	for i, email := range emails {
-		line := fmt.Sprintf("  From: %s | Subject: %s", email.From, email.Subject)
-
 		// Check if this is from a known contact
 		isKnown := m.contact_history != nil && m.contact_history.IsKnown(email.From)
+
+		// Calculate available width for email line
+		// Account for: "  From: " (8) + " | Subject: " (12) + star (2 if known) + padding
+		availableWidth := m.width - 25
+		if isKnown {
+			availableWidth -= 2 // Account for star
+		}
+		if availableWidth < 20 {
+			availableWidth = 20
+		}
+
+		// Split available width: 40% for From, 60% for Subject
+		fromWidth := availableWidth * 40 / 100
+		subjectWidth := availableWidth - fromWidth
+
+		// Truncate From field
+		fromField := email.From
+		if len(fromField) > fromWidth {
+			if fromWidth > 3 {
+				fromField = fromField[:fromWidth-3] + "..."
+			} else {
+				fromField = fromField[:fromWidth]
+			}
+		}
+
+		// Truncate Subject field
+		subjectField := email.Subject
+		if len(subjectField) > subjectWidth {
+			if subjectWidth > 3 {
+				subjectField = subjectField[:subjectWidth-3] + "..."
+			} else {
+				subjectField = subjectField[:subjectWidth]
+			}
+		}
+
+		line := fmt.Sprintf("  From: %s | Subject: %s", fromField, subjectField)
 
 		if i == m.selected {
 			// Selected email style
@@ -606,13 +693,16 @@ func (m Model) get_current_emails() []Email {
 	if len(m.search_results) > 0 {
 		return m.search_results
 	}
+	if m.view_mode == "sent" {
+		return m.sent_emails
+	}
 	return m.emails
 }
 
 // should_load_more checks if we should load the next batch of emails
 func (m Model) should_load_more() bool {
-	// Only load more if we're in normal mode (not searching) and have credentials
-	if len(m.search_results) > 0 || m.fetch_user == "" || m.fetch_pass == "" {
+	// Don't load more in sent mode or search mode
+	if len(m.search_results) > 0 || m.view_mode == "sent" || m.fetch_user == "" || m.fetch_pass == "" {
 		return false
 	}
 	// Load more if we're at the end of our current emails
@@ -629,7 +719,13 @@ func (m Model) perform_search(query string) []Email {
 	query_lower := strings.ToLower(query)
 	var results []Email
 
-	for _, email := range m.emails {
+	// Search in the correct email list based on view mode
+	emailsToSearch := m.emails
+	if m.view_mode == "sent" {
+		emailsToSearch = m.sent_emails
+	}
+
+	for _, email := range emailsToSearch {
 		if strings.Contains(strings.ToLower(email.Subject), query_lower) ||
 			strings.Contains(strings.ToLower(email.Body), query_lower) {
 			results = append(results, email)
