@@ -30,69 +30,69 @@ type Email struct {
 }
 
 type Model struct {
-	emails             []Email
-	selected           int
-	page               int
-	emailsPerPage      int
-	width              int
-	height             int
-	viewingEmail       bool
-	viewingAttachments bool
-	selectedAttachment int
-	Action             string // "select" or "quit"
+	emails              []Email
+	selected            int
+	page                int
+	emails_per_page     int
+	width               int
+	height              int
+	viewing_email       bool
+	viewing_attachments bool
+	selected_attachment int
+	Action              string // "select" or "quit"
 
 	// async fetch control
-	Loading   bool
-	fetchUser string
-	fetchPass string
-	fetchMax  int
+	Loading    bool
+	fetch_user string
+	fetch_pass string
+	fetch_max  int
 
 	// contact history
-	contactHistory *contacts.ContactHistory
+	contact_history *contacts.ContactHistory
 
 	// download status
-	downloadMessage string
-	showingDownload bool
+	download_message string
+	showing_download bool
 
 	// title animation
-	titleAnimator title.Animator
+	title_animator title.Animator
 
 	// spinner animation
-	spinnerFrame int
+	spinner_frame int
 }
 
-func InitialModel(emails []Email, emailsPerPage int, loading bool, fetchUser, fetchPass string, fetchMax int) Model {
+func InitialModel(emails []Email, emails_per_page int, loading bool, fetch_user, fetch_pass string, fetch_max int) Model {
 	// Sort emails by ID descending (most recent first)
 	sort.Slice(emails, func(i, j int) bool {
 		return emails[i].ID > emails[j].ID
 	})
 
 	return Model{
-		emails:             emails,
-		selected:           0,
-		page:               0,
-		emailsPerPage:      emailsPerPage,
-		width:              80,
-		height:             24,
-		viewingEmail:       false,
-		viewingAttachments: false,
-		selectedAttachment: 0,
-		Loading:            loading,
-		fetchUser:          fetchUser,
-		fetchPass:          fetchPass,
-		fetchMax:           fetchMax,
-		contactHistory:     contacts.Load(),
-		downloadMessage:    "",
-		showingDownload:    false,
-		titleAnimator:      title.New(),
-		spinnerFrame:       0,
+		emails:              emails,
+		selected:            0,
+		page:                0,
+		emails_per_page:     emails_per_page,
+		width:               80,
+		height:              24,
+		viewing_email:       false,
+		viewing_attachments: false,
+		selected_attachment: 0,
+		Loading:             loading,
+		fetch_user:          fetch_user,
+		fetch_pass:          fetch_pass,
+		fetch_max:           fetch_max,
+		contact_history:     contacts.Load(),
+		download_message:    "",
+		showing_download:    false,
+		title_animator:      title.New(),
+		spinner_frame:       0,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
-	if m.Loading && m.fetchUser != "" && m.fetchPass != "" {
-		cmds = append(cmds, FetchEmailsCmd(m.fetchUser, m.fetchPass, m.fetchMax))
+	if m.Loading && m.fetch_user != "" && m.fetch_pass != "" {
+		cmds = append(cmds, FetchEmailsCmd(m.fetch_user, m.fetch_pass, m.fetch_max))
 	}
 	cmds = append(cmds, title.TickCmd())
 	return tea.Batch(cmds...)
@@ -100,10 +100,10 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle title animation updates and spinner
-	if cmd := m.titleAnimator.Update(msg); cmd != nil {
+	if cmd := m.title_animator.Update(msg); cmd != nil {
 		// Also update spinner frame on each tick
 		if _, ok := msg.(title.TickMsg); ok {
-			m.spinnerFrame++
+			m.spinner_frame++
 		}
 		return m, cmd
 	}
@@ -115,9 +115,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Dismiss download message
-		if m.showingDownload {
-			m.showingDownload = false
-			m.downloadMessage = ""
+		if m.showing_download {
+			m.showing_download = false
+			m.download_message = ""
 			return m, nil
 		}
 
@@ -129,32 +129,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "ctrl+r":
 			// Refresh inbox
-			if m.fetchUser != "" && m.fetchPass != "" {
+			if m.fetch_user != "" && m.fetch_pass != "" {
 				m.Loading = true
-				return m, FetchEmailsCmd(m.fetchUser, m.fetchPass, m.fetchMax)
+				return m, FetchEmailsCmd(m.fetch_user, m.fetch_pass, m.fetch_max)
 			}
 
 		case "up", "k":
-			if m.viewingAttachments {
-				if m.selectedAttachment > 0 {
-					m.selectedAttachment--
+			if m.viewing_attachments {
+				if m.selected_attachment > 0 {
+					m.selected_attachment--
 				}
 			} else if m.selected > 0 {
 				m.selected--
 			} else if m.page > 0 {
 				m.page--
-				m.selected = m.emailsPerPage - 1
+				m.selected = m.emails_per_page - 1
 			}
 
 		case "down", "j":
-			if m.viewingAttachments {
-				email := m.getSelectedEmail()
-				if email != nil && m.selectedAttachment < len(email.Attachments)-1 {
-					m.selectedAttachment++
+			if m.viewing_attachments {
+				email := m.get_selected_email()
+				if email != nil && m.selected_attachment < len(email.Attachments)-1 {
+					m.selected_attachment++
 				}
-			} else if m.selected < m.currentPageCount()-1 {
+			} else if m.selected < m.current_page_count()-1 {
 				m.selected++
-			} else if (m.page+1)*m.emailsPerPage < len(m.emails) {
+			} else if (m.page+1)*m.emails_per_page < len(m.emails) {
 				m.page++
 				m.selected = 0
 			}
@@ -166,53 +166,53 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "right", "l":
-			maxPage := (len(m.emails) - 1) / m.emailsPerPage
+			maxPage := (len(m.emails) - 1) / m.emails_per_page
 			if m.page < maxPage {
 				m.page++
 				m.selected = 0
 			}
 
 		case "enter":
-			if !m.viewingEmail && len(m.emails) > 0 {
-				m.viewingEmail = true
-			} else if m.viewingEmail && !m.viewingAttachments {
-				m.viewingEmail = false
-			} else if m.viewingAttachments {
-				m.viewingAttachments = false
+			if !m.viewing_email && len(m.emails) > 0 {
+				m.viewing_email = true
+			} else if m.viewing_email && !m.viewing_attachments {
+				m.viewing_email = false
+			} else if m.viewing_attachments {
+				m.viewing_attachments = false
 			}
 
 		case "a":
 			// Show attachments list when viewing an email
-			if m.viewingEmail && !m.viewingAttachments {
-				email := m.getSelectedEmail()
+			if m.viewing_email && !m.viewing_attachments {
+				email := m.get_selected_email()
 				if email != nil && len(email.Attachments) > 0 {
-					m.viewingAttachments = true
-					m.selectedAttachment = 0
+					m.viewing_attachments = true
+					m.selected_attachment = 0
 				}
 			}
 
 		case "d":
 			// Download selected attachment
-			if m.viewingAttachments {
-				email := m.getSelectedEmail()
-				if email != nil && m.selectedAttachment >= 0 && m.selectedAttachment < len(email.Attachments) {
-					att := email.Attachments[m.selectedAttachment]
-					filePath, err := m.downloadAttachment(att)
+			if m.viewing_attachments {
+				email := m.get_selected_email()
+				if email != nil && m.selected_attachment >= 0 && m.selected_attachment < len(email.Attachments) {
+					att := email.Attachments[m.selected_attachment]
+					filePath, err := m.download_attachment(att)
 					if err != nil {
-						m.downloadMessage = fmt.Sprintf("Failed to download: %v", err)
-						m.showingDownload = true
+						m.download_message = fmt.Sprintf("Failed to download: %v", err)
+						m.showing_download = true
 					} else {
-						m.downloadMessage = fmt.Sprintf("Downloaded successfully!\n\nFile: %s\nLocation: %s", att.Filename, filepath.Dir(filePath))
-						m.showingDownload = true
+						m.download_message = fmt.Sprintf("Downloaded successfully!\n\nFile: %s\nLocation: %s", att.Filename, filepath.Dir(filePath))
+						m.showing_download = true
 					}
 				}
 			}
 
 		case "esc":
-			if m.viewingAttachments {
-				m.viewingAttachments = false
-			} else if m.viewingEmail {
-				m.viewingEmail = false
+			if m.viewing_attachments {
+				m.viewing_attachments = false
+			} else if m.viewing_email {
+				m.viewing_email = false
 			}
 		}
 	}
@@ -228,7 +228,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.emails = v.Emails
 			// ensure sorted newest-first
 			sort.Slice(m.emails, func(i, j int) bool { return m.emails[i].ID > m.emails[j].ID })
-			m.contactHistory = contacts.Load()
+			m.contact_history = contacts.Load()
 			// Reset to first page
 			m.page = 0
 			m.selected = 0
@@ -240,34 +240,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	// Show download message if active
-	if m.showingDownload {
+	if m.showing_download {
 		messageBox := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			Padding(1).
 			Width(60).
 			BorderForeground(lipgloss.Color("2")).
-			Render(m.downloadMessage + "\n\n(press any key to dismiss)")
+			Render(m.download_message + "\n\n(press any key to dismiss)")
 
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, messageBox)
 	}
 
 	// Animated title with box
-	title := m.titleAnimator.Render()
+	title := m.title_animator.Render()
 
 	var body string
 	if m.Loading {
-		body = m.renderLoadingSpinner()
-	} else if m.viewingAttachments {
-		body = m.renderAttachmentList()
-	} else if m.viewingEmail {
-		email := m.getSelectedEmail()
+		body = m.render_loading_spinner()
+	} else if m.viewing_attachments {
+		body = m.render_attachment_list()
+	} else if m.viewing_email {
+		email := m.get_selected_email()
 		if email != nil {
-			body = m.renderEmailView(email)
+			body = m.render_email_view(email)
 		} else {
 			body = "No email selected."
 		}
 	} else {
-		body = m.renderEmailList()
+		body = m.render_email_list()
 	}
 
 	box := lipgloss.NewStyle().
@@ -281,16 +281,16 @@ func (m Model) View() string {
 		Foreground(lipgloss.Color("8")).
 		Padding(0, 1).
 		Width(m.width - 2).
-		Render(m.getFooterText())
+		Render(m.get_footer_text())
 
 	return lipgloss.JoinVertical(lipgloss.Left, title, box, footer)
 }
 
-func (m Model) getFooterText() string {
-	if m.viewingAttachments {
+func (m Model) get_footer_text() string {
+	if m.viewing_attachments {
 		return "↑/k up • ↓/j down • d download • esc back • ctrl+q quit"
-	} else if m.viewingEmail {
-		email := m.getSelectedEmail()
+	} else if m.viewing_email {
+		email := m.get_selected_email()
 		if email != nil && len(email.Attachments) > 0 {
 			return "enter back • a view attachments • esc back • ctrl+q quit"
 		}
@@ -299,10 +299,10 @@ func (m Model) getFooterText() string {
 	return "↑/k up • ↓/j down • h/l prev/next page • enter view • ctrl+r refresh • ctrl+q quit"
 }
 
-// renderEmailList shows the current page of emails
-func (m Model) renderEmailList() string {
-	start := m.page * m.emailsPerPage
-	end := start + m.emailsPerPage
+// render_email_list shows the current page of emails
+func (m Model) render_email_list() string {
+	start := m.page * m.emails_per_page
+	end := start + m.emails_per_page
 	if end > len(m.emails) {
 		end = len(m.emails)
 	}
@@ -313,7 +313,7 @@ func (m Model) renderEmailList() string {
 		line := fmt.Sprintf("  From: %s | Subject: %s", email.From, email.Subject)
 
 		// Check if this is from a known contact
-		isKnown := m.contactHistory != nil && m.contactHistory.IsKnown(email.From)
+		isKnown := m.contact_history != nil && m.contact_history.IsKnown(email.From)
 
 		if i == m.selected {
 			// Selected email style
@@ -343,7 +343,7 @@ func (m Model) renderEmailList() string {
 	}
 
 	// Add page indicator
-	totalPages := (len(m.emails) + m.emailsPerPage - 1) / m.emailsPerPage
+	totalPages := (len(m.emails) + m.emails_per_page - 1) / m.emails_per_page
 	if totalPages > 1 {
 		lines += fmt.Sprintf("\n\nPage %d/%d", m.page+1, totalPages)
 	}
@@ -351,18 +351,18 @@ func (m Model) renderEmailList() string {
 	return lines
 }
 
-func (m Model) getSelectedEmail() *Email {
-	idx := m.page*m.emailsPerPage + m.selected
+func (m Model) get_selected_email() *Email {
+	idx := m.page*m.emails_per_page + m.selected
 	if idx >= 0 && idx < len(m.emails) {
 		return &m.emails[idx]
 	}
 	return nil
 }
 
-func (m Model) currentPageCount() int {
-	remaining := len(m.emails) - m.page*m.emailsPerPage
-	if remaining > m.emailsPerPage {
-		return m.emailsPerPage
+func (m Model) current_page_count() int {
+	remaining := len(m.emails) - m.page*m.emails_per_page
+	if remaining > m.emails_per_page {
+		return m.emails_per_page
 	}
 	return remaining
 }
@@ -374,16 +374,24 @@ func max(a, b int) int {
 	return b
 }
 
-// renderEmailView renders a single email with attachment indicators
-func (m Model) renderEmailView(email *Email) string {
+// render_email_view renders a single email with attachment indicators
+func (m Model) render_email_view(email *Email) string {
 	view := fmt.Sprintf("From: %s\nSubject: %s\n\n%s", email.From, email.Subject, email.Body)
 
 	if len(email.Attachments) > 0 {
+		// Check unicode support
+		sett := settings.InitialModel()
+		unicode_support := sett.GetSetting("unicode support") == "y"
+		attachment_icon := "[A]"
+		if unicode_support {
+			attachment_icon = "📎"
+		}
+
 		attachStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("6")).
 			Bold(true)
 
-		view += "\n\n" + attachStyle.Render(fmt.Sprintf("📎 %d attachment(s)", len(email.Attachments)))
+		view += "\n\n" + attachStyle.Render(fmt.Sprintf("%s %d attachment(s)", attachment_icon, len(email.Attachments)))
 		view += lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8")).
 			Render("\n(press 'a' to view/download)")
@@ -392,11 +400,19 @@ func (m Model) renderEmailView(email *Email) string {
 	return view
 }
 
-// renderAttachmentList renders the list of attachments for download
-func (m Model) renderAttachmentList() string {
-	email := m.getSelectedEmail()
+// render_attachment_list renders the list of attachments for download
+func (m Model) render_attachment_list() string {
+	email := m.get_selected_email()
 	if email == nil || len(email.Attachments) == 0 {
 		return "No attachments available."
+	}
+
+	// Check unicode support
+	sett := settings.InitialModel()
+	unicode_support := sett.GetSetting("unicode support") == "y"
+	attachment_icon := "[A]"
+	if unicode_support {
+		attachment_icon = "📎"
 	}
 
 	normalStyle := lipgloss.NewStyle().
@@ -415,10 +431,10 @@ func (m Model) renderAttachmentList() string {
 
 	for i, att := range email.Attachments {
 		// Format size
-		size := formatSize(len(att.Data))
-		line := fmt.Sprintf("  📎 %s (%s)", att.Filename, size)
+		size := format_size(len(att.Data))
+		line := fmt.Sprintf("  %s %s (%s)", attachment_icon, att.Filename, size)
 
-		if i == m.selectedAttachment {
+		if i == m.selected_attachment {
 			view.WriteString(selectedStyle.Render(line) + "\n")
 		} else {
 			view.WriteString(normalStyle.Render(line) + "\n")
@@ -428,50 +444,50 @@ func (m Model) renderAttachmentList() string {
 	return view.String()
 }
 
-// downloadAttachment saves an attachment to the configured download folder
-func (m *Model) downloadAttachment(att Attachment) (string, error) {
+// download_attachment saves an attachment to the configured download folder
+func (m *Model) download_attachment(att Attachment) (string, error) {
 	// Get download path from settings
 	sett := settings.InitialModel()
-	downloadPath := sett.GetSetting("default attachment download path")
+	download_path := sett.GetSetting("default attachment download path")
 
 	// If not set, use Downloads folder as default
-	if downloadPath == "" {
+	if download_path == "" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return "", fmt.Errorf("could not get home directory: %v", err)
 		}
-		downloadPath = filepath.Join(homeDir, "Downloads")
+		download_path = filepath.Join(homeDir, "Downloads")
 	}
 
 	// Expand tilde in path
-	if strings.HasPrefix(downloadPath, "~/") {
+	if strings.HasPrefix(download_path, "~/") {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return "", fmt.Errorf("could not get home directory: %v", err)
 		}
-		downloadPath = filepath.Join(homeDir, downloadPath[2:])
-	} else if downloadPath == "~" {
+		download_path = filepath.Join(homeDir, download_path[2:])
+	} else if download_path == "~" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return "", fmt.Errorf("could not get home directory: %v", err)
 		}
-		downloadPath = homeDir
+		download_path = homeDir
 	}
 
 	// Create download directory if it doesn't exist
-	if err := os.MkdirAll(downloadPath, 0755); err != nil {
+	if err := os.MkdirAll(download_path, 0755); err != nil {
 		return "", fmt.Errorf("could not create download directory: %v", err)
 	}
 
 	// Check if file exists and add number suffix if needed
-	filePath := filepath.Join(downloadPath, att.Filename)
+	filePath := filepath.Join(download_path, att.Filename)
 	if _, err := os.Stat(filePath); err == nil {
 		// File exists, add number suffix
 		ext := filepath.Ext(att.Filename)
 		nameWithoutExt := strings.TrimSuffix(att.Filename, ext)
 		counter := 1
 		for {
-			filePath = filepath.Join(downloadPath, fmt.Sprintf("%s_%d%s", nameWithoutExt, counter, ext))
+			filePath = filepath.Join(download_path, fmt.Sprintf("%s_%d%s", nameWithoutExt, counter, ext))
 			if _, err := os.Stat(filePath); os.IsNotExist(err) {
 				break
 			}
@@ -487,8 +503,8 @@ func (m *Model) downloadAttachment(att Attachment) (string, error) {
 	return filePath, nil
 }
 
-// formatSize formats bytes into human-readable format
-func formatSize(bytes int) string {
+// format_size formats bytes into human-readable format
+func format_size(bytes int) string {
 	const unit = 1024
 	if bytes < unit {
 		return fmt.Sprintf("%d B", bytes)
@@ -501,11 +517,22 @@ func formatSize(bytes int) string {
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
-// renderLoadingSpinner renders a spinning wheel animation for loading state
-func (m Model) renderLoadingSpinner() string {
-	// Spinner frames using Unicode characters
-	spinners := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	frame := spinners[m.spinnerFrame%len(spinners)]
+// render_loading_spinner renders a spinning wheel animation for loading state
+func (m Model) render_loading_spinner() string {
+	// Check unicode support
+	sett := settings.InitialModel()
+	unicode_support := sett.GetSetting("unicode support") == "y"
+
+	var frame string
+	if unicode_support {
+		// Spinner frames using Unicode characters
+		spinners := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+		frame = spinners[m.spinner_frame%len(spinners)]
+	} else {
+		// ASCII spinner frames
+		spinners := []string{"-", "\\", "|", "/"}
+		frame = spinners[m.spinner_frame%len(spinners)]
+	}
 
 	// Style the spinner with cyan color
 	spinnerStyle := lipgloss.NewStyle().

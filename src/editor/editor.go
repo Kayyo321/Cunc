@@ -30,32 +30,32 @@ type Model struct {
 	confirming_send bool
 
 	// Autocomplete fields
-	contactHistory *contacts.ContactHistory
-	suggestions    []string
-	selectedSugg   int
-	showingSugg    bool
+	contact_history *contacts.ContactHistory
+	suggestions     []string
+	selected_sugg   int
+	showing_sugg    bool
 
 	// Typo detection fields
-	typos             []string
-	lastTypoCheckTime time.Time
-	typoCheckInterval time.Duration
-	lastSubjectValue  string
-	lastBodyValue     string
-	maxTyposToShow    int
+	typos                []string
+	last_typo_check_time time.Time
+	typo_check_interval  time.Duration
+	last_subject_value   string
+	last_body_value      string
+	max_typos_to_show    int
 
 	// Error display
-	lastSendError string
-	showingError  bool
+	last_send_error string
+	showing_error   bool
 
 	// Attachments
-	attachments        []string
-	selectedAttachment int
-	showingFilePicker  bool
-	filePickerPath     string
-	filePickerFiles    []os.FileInfo
-	filePickerSelected int
-	filePickerInput    textinput.Model
-	lastAttachmentPath string
+	attachments          []string
+	selected_attachment  int
+	showing_file_picker  bool
+	file_picker_path     string
+	file_picker_files    []os.FileInfo
+	file_picker_selected int
+	file_picker_input    textinput.Model
+	last_attachment_path string
 }
 
 func ComposeFrom(m Model) {
@@ -81,50 +81,50 @@ func InitialModel() Model {
 	body.Placeholder = "Write your message..."
 
 	sett := settings.InitialModel()
-	maxTypos := 3 // default
-	if maxTyposStr := sett.GetSetting("max typos displayed"); maxTyposStr != "" {
-		if parsed, err := strconv.Atoi(maxTyposStr); err == nil && parsed > 0 {
-			maxTypos = parsed
+	max_typos := 3 // default
+	if max_typos_str := sett.GetSetting("max typos displayed"); max_typos_str != "" {
+		if parsed, err := strconv.Atoi(max_typos_str); err == nil && parsed > 0 {
+			max_typos = parsed
 		}
 	}
 
-	homeDir, _ := os.UserHomeDir()
-	if homeDir == "" {
-		homeDir = "/"
+	home_dir, _ := os.UserHomeDir()
+	if home_dir == "" {
+		home_dir = "/"
 	}
 
-	filePickerInput := textinput.New()
-	filePickerInput.Placeholder = "Type to filter files..."
+	file_picker_input := textinput.New()
+	file_picker_input.Placeholder = "Type to filter files..."
 
 	return Model{
-		to:                 to,
-		subject:            subject,
-		body:               body,
-		focus:              0,
-		width:              80,
-		height:             24,
-		draft_id:           fmt.Sprintf("%d", time.Now().UnixNano()),
-		confirming_send:    false,
-		contactHistory:     contacts.Load(),
-		suggestions:        []string{},
-		selectedSugg:       0,
-		showingSugg:        false,
-		typos:              []string{},
-		lastTypoCheckTime:  time.Now(),
-		typoCheckInterval:  1 * time.Second,
-		lastSubjectValue:   "",
-		lastBodyValue:      "",
-		maxTyposToShow:     maxTypos,
-		lastSendError:      "",
-		showingError:       false,
-		attachments:        []string{},
-		selectedAttachment: 0,
-		showingFilePicker:  false,
-		filePickerPath:     homeDir,
-		filePickerFiles:    []os.FileInfo{},
-		filePickerSelected: 0,
-		filePickerInput:    filePickerInput,
-		lastAttachmentPath: homeDir,
+		to:                   to,
+		subject:              subject,
+		body:                 body,
+		focus:                0,
+		width:                80,
+		height:               24,
+		draft_id:             fmt.Sprintf("%d", time.Now().UnixNano()),
+		confirming_send:      false,
+		contact_history:      contacts.Load(),
+		suggestions:          []string{},
+		selected_sugg:        0,
+		showing_sugg:         false,
+		typos:                []string{},
+		last_typo_check_time: time.Now(),
+		typo_check_interval:  1 * time.Second,
+		last_subject_value:   "",
+		last_body_value:      "",
+		max_typos_to_show:    max_typos,
+		last_send_error:      "",
+		showing_error:        false,
+		attachments:          []string{},
+		selected_attachment:  0,
+		showing_file_picker:  false,
+		file_picker_path:     home_dir,
+		file_picker_files:    []os.FileInfo{},
+		file_picker_selected: 0,
+		file_picker_input:    file_picker_input,
+		last_attachment_path: home_dir,
 	}
 }
 
@@ -143,56 +143,56 @@ func LoadDraft(draft_id, to, subject, body string, attachments []string) Model {
 	body_input.Placeholder = "Write your message..."
 
 	sett := settings.InitialModel()
-	maxTypos := 3 // default
-	if maxTyposStr := sett.GetSetting("max typos displayed"); maxTyposStr != "" {
-		if parsed, err := strconv.Atoi(maxTyposStr); err == nil && parsed > 0 {
-			maxTypos = parsed
+	max_typos := 3 // default
+	if max_typos_str := sett.GetSetting("max typos displayed"); max_typos_str != "" {
+		if parsed, err := strconv.Atoi(max_typos_str); err == nil && parsed > 0 {
+			max_typos = parsed
 		}
 	}
 
-	homeDir, _ := os.UserHomeDir()
-	if homeDir == "" {
-		homeDir = "/"
+	home_dir, _ := os.UserHomeDir()
+	if home_dir == "" {
+		home_dir = "/"
 	}
 
 	// Determine last attachment path from attachments
-	lastPath := homeDir
+	last_path := home_dir
 	if len(attachments) > 0 {
-		lastPath = filepath.Dir(attachments[len(attachments)-1])
+		last_path = filepath.Dir(attachments[len(attachments)-1])
 	}
 
-	filePickerInput := textinput.New()
-	filePickerInput.Placeholder = "Type to filter files..."
+	file_picker_input := textinput.New()
+	file_picker_input.Placeholder = "Type to filter files..."
 
 	return Model{
-		to:                 to_input,
-		subject:            subject_input,
-		body:               body_input,
-		focus:              0,
-		width:              80,
-		height:             24,
-		draft_id:           draft_id,
-		confirming_send:    false,
-		contactHistory:     contacts.Load(),
-		suggestions:        []string{},
-		selectedSugg:       0,
-		showingSugg:        false,
-		typos:              []string{},
-		lastTypoCheckTime:  time.Now(),
-		typoCheckInterval:  1 * time.Second,
-		lastSubjectValue:   subject,
-		lastBodyValue:      body,
-		maxTyposToShow:     maxTypos,
-		lastSendError:      "",
-		showingError:       false,
-		attachments:        attachments,
-		selectedAttachment: 0,
-		showingFilePicker:  false,
-		filePickerPath:     lastPath,
-		filePickerFiles:    []os.FileInfo{},
-		filePickerSelected: 0,
-		filePickerInput:    filePickerInput,
-		lastAttachmentPath: lastPath,
+		to:                   to_input,
+		subject:              subject_input,
+		body:                 body_input,
+		focus:                0,
+		width:                80,
+		height:               24,
+		draft_id:             draft_id,
+		confirming_send:      false,
+		contact_history:      contacts.Load(),
+		suggestions:          []string{},
+		selected_sugg:        0,
+		showing_sugg:         false,
+		typos:                []string{},
+		last_typo_check_time: time.Now(),
+		typo_check_interval:  1 * time.Second,
+		last_subject_value:   subject,
+		last_body_value:      body,
+		max_typos_to_show:    max_typos,
+		last_send_error:      "",
+		showing_error:        false,
+		attachments:          attachments,
+		selected_attachment:  0,
+		showing_file_picker:  false,
+		file_picker_path:     last_path,
+		file_picker_files:    []os.FileInfo{},
+		file_picker_selected: 0,
+		file_picker_input:    file_picker_input,
+		last_attachment_path: last_path,
 	}
 }
 
@@ -258,18 +258,18 @@ func (m *Model) SendEmail() bool {
 	preventWithTypos := sett.GetSetting("prevent send with typos") == "y"
 
 	// Check for typos in subject and body
-	subjectTypos := CheckTypos(m.GetSubject(), m.maxTyposToShow)
-	bodyTypos := CheckTypos(m.GetBody(), m.maxTyposToShow)
+	subjectTypos := CheckTypos(m.GetSubject(), m.max_typos_to_show)
+	bodyTypos := CheckTypos(m.GetBody(), m.max_typos_to_show)
 	hasTypos := len(subjectTypos) > 0 || len(bodyTypos) > 0
 
 	if preventWithTypos && hasTypos {
-		m.lastSendError = "Email contains typos in subject/body.\n\nPlease fix them or change\n'prevent send with typos' to 'n' in settings."
+		m.last_send_error = "Email contains typos in subject/body.\n\nPlease fix them or change\n'prevent send with typos' to 'n' in settings."
 		return false
 	}
 
 	err := sending.Send(m.GetTo(), m.GetSubject(), m.GetBody(), m.attachments)
 	if err != nil {
-		m.lastSendError = "Failed to send email:\n\n" + err.Error()
+		m.last_send_error = "Failed to send email:\n\n" + err.Error()
 		return false
 	}
 
@@ -299,44 +299,44 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Handle file picker
-		if m.showingFilePicker {
+		if m.showing_file_picker {
 			switch msg.String() {
 			case "ctrl+q", "esc":
-				m.showingFilePicker = false
-				m.filePickerInput.Blur()
+				m.showing_file_picker = false
+				m.file_picker_input.Blur()
 				return m, nil
 			case "up", "k":
-				if m.filePickerSelected > 0 {
-					m.filePickerSelected--
+				if m.file_picker_selected > 0 {
+					m.file_picker_selected--
 				}
 				return m, nil
 			case "down", "j":
-				filtered := m.getFilteredFiles()
-				if m.filePickerSelected < len(filtered)-1 {
-					m.filePickerSelected++
+				filtered := m.get_filtered_files()
+				if m.file_picker_selected < len(filtered)-1 {
+					m.file_picker_selected++
 				}
 				return m, nil
 			case "enter":
-				m.selectFilePickerItem()
+				m.select_file_picker_item()
 				return m, nil
 			case "backspace":
-				if m.filePickerInput.Value() == "" {
-					m.filePickerGoUp()
+				if m.file_picker_input.Value() == "" {
+					m.file_picker_go_up()
 					return m, nil
 				}
 			}
 			// Update filter input
 			var cmd tea.Cmd
-			m.filePickerInput, cmd = m.filePickerInput.Update(msg)
+			m.file_picker_input, cmd = m.file_picker_input.Update(msg)
 			// Reset selection when filter changes
-			m.filePickerSelected = 0
+			m.file_picker_selected = 0
 			return m, cmd
 		}
 
 		// Handle error dismissal
-		if m.showingError {
-			m.showingError = false
-			m.lastSendError = ""
+		if m.showing_error {
+			m.showing_error = false
+			m.last_send_error = ""
 			return m, nil
 		}
 
@@ -349,7 +349,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "ctrl+a":
 			if !m.confirming_send {
-				m.openFilePicker()
+				m.open_file_picker()
 				handled = true
 			}
 
@@ -362,10 +362,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "delete", "backspace", "x":
 			if m.focus == 3 && len(m.attachments) > 0 {
 				// Remove selected attachment
-				if m.selectedAttachment >= 0 && m.selectedAttachment < len(m.attachments) {
-					m.attachments = append(m.attachments[:m.selectedAttachment], m.attachments[m.selectedAttachment+1:]...)
-					if m.selectedAttachment >= len(m.attachments) && m.selectedAttachment > 0 {
-						m.selectedAttachment--
+				if m.selected_attachment >= 0 && m.selected_attachment < len(m.attachments) {
+					m.attachments = append(m.attachments[:m.selected_attachment], m.attachments[m.selected_attachment+1:]...)
+					if m.selected_attachment >= len(m.attachments) && m.selected_attachment > 0 {
+						m.selected_attachment--
 					}
 					if len(m.attachments) == 0 {
 						m.focus = 0
@@ -376,10 +376,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "tab":
-			if m.showingSugg && m.focus == 0 && len(m.suggestions) > 0 {
+			if m.showing_sugg && m.focus == 0 && len(m.suggestions) > 0 {
 				// Select current suggestion
-				m.to.SetValue(m.suggestions[m.selectedSugg])
-				m.showingSugg = false
+				m.to.SetValue(m.suggestions[m.selected_sugg])
+				m.showing_sugg = false
 				m.suggestions = []string{}
 				handled = true
 			} else if !m.confirming_send {
@@ -391,7 +391,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.focus < 3 {
 					m.Refocus()
 				}
-				m.showingSugg = false
+				m.showing_sugg = false
 				handled = true
 			}
 
@@ -405,13 +405,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.focus < 3 {
 					m.Refocus()
 				}
-				m.showingSugg = false
+				m.showing_sugg = false
 				handled = true
 			}
 
 		case "esc":
-			if m.showingSugg {
-				m.showingSugg = false
+			if m.showing_sugg {
+				m.showing_sugg = false
 				m.suggestions = []string{}
 				handled = true
 			} else if m.focus == 3 {
@@ -421,28 +421,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "down":
-			if m.showingSugg && m.focus == 0 {
-				m.selectedSugg = (m.selectedSugg + 1) % len(m.suggestions)
+			if m.showing_sugg && m.focus == 0 {
+				m.selected_sugg = (m.selected_sugg + 1) % len(m.suggestions)
 				handled = true
 			} else if m.focus == 3 && len(m.attachments) > 1 {
-				m.selectedAttachment = (m.selectedAttachment + 1) % len(m.attachments)
+				m.selected_attachment = (m.selected_attachment + 1) % len(m.attachments)
 				handled = true
 			}
 
 		case "up":
-			if m.showingSugg && m.focus == 0 {
-				m.selectedSugg = (m.selectedSugg - 1 + len(m.suggestions)) % len(m.suggestions)
+			if m.showing_sugg && m.focus == 0 {
+				m.selected_sugg = (m.selected_sugg - 1 + len(m.suggestions)) % len(m.suggestions)
 				handled = true
 			} else if m.focus == 3 && len(m.attachments) > 1 {
-				m.selectedAttachment = (m.selectedAttachment - 1 + len(m.attachments)) % len(m.attachments)
+				m.selected_attachment = (m.selected_attachment - 1 + len(m.attachments)) % len(m.attachments)
 				handled = true
 			}
 
 		case "enter":
-			if m.showingSugg && m.focus == 0 && len(m.suggestions) > 0 {
+			if m.showing_sugg && m.focus == 0 && len(m.suggestions) > 0 {
 				// Select current suggestion
-				m.to.SetValue(m.suggestions[m.selectedSugg])
-				m.showingSugg = false
+				m.to.SetValue(m.suggestions[m.selected_sugg])
+				m.showing_sugg = false
 				m.suggestions = []string{}
 				handled = true
 			}
@@ -469,7 +469,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				// If send failed, show error
 				m.confirming_send = false
-				m.showingError = true
+				m.showing_error = true
 				handled = true
 			}
 
@@ -495,7 +495,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.to, cmd = m.to.Update(msg)
 		// Update autocomplete suggestions if "to" field changed
 		if m.to.Value() != oldToValue {
-			m.updateSuggestions()
+			m.update_suggestions()
 		}
 	case 1:
 		m.subject, cmd = m.subject.Update(msg)
@@ -507,62 +507,62 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Check for typos periodically if subject or body changed
-	if time.Since(m.lastTypoCheckTime) > m.typoCheckInterval {
-		if m.focus == 1 && m.subject.Value() != m.lastSubjectValue {
-			m.typos = CheckTypos(m.subject.Value(), m.maxTyposToShow)
-			m.lastSubjectValue = m.subject.Value()
-			m.lastTypoCheckTime = time.Now()
-		} else if m.focus == 2 && m.body.Value() != m.lastBodyValue {
-			m.typos = CheckTypos(m.body.Value(), m.maxTyposToShow)
-			m.lastBodyValue = m.body.Value()
-			m.lastTypoCheckTime = time.Now()
+	if time.Since(m.last_typo_check_time) > m.typo_check_interval {
+		if m.focus == 1 && m.subject.Value() != m.last_subject_value {
+			m.typos = CheckTypos(m.subject.Value(), m.max_typos_to_show)
+			m.last_subject_value = m.subject.Value()
+			m.last_typo_check_time = time.Now()
+		} else if m.focus == 2 && m.body.Value() != m.last_body_value {
+			m.typos = CheckTypos(m.body.Value(), m.max_typos_to_show)
+			m.last_body_value = m.body.Value()
+			m.last_typo_check_time = time.Now()
 		}
 	}
 
 	return m, cmd
 }
 
-func (m *Model) updateSuggestions() {
+func (m *Model) update_suggestions() {
 	toValue := m.to.Value()
 	if toValue == "" {
-		m.showingSugg = false
+		m.showing_sugg = false
 		m.suggestions = []string{}
 		return
 	}
 
-	if m.contactHistory == nil {
-		m.showingSugg = false
+	if m.contact_history == nil {
+		m.showing_sugg = false
 		m.suggestions = []string{}
 		return
 	}
 
-	suggestions := m.contactHistory.GetSuggestions(toValue)
+	suggestions := m.contact_history.GetSuggestions(toValue)
 	if len(suggestions) > 0 {
 		m.suggestions = suggestions
 		if len(m.suggestions) > 5 {
 			m.suggestions = m.suggestions[:5] // Limit to 5 suggestions
 		}
-		m.showingSugg = true
-		m.selectedSugg = 0
+		m.showing_sugg = true
+		m.selected_sugg = 0
 	} else {
-		m.showingSugg = false
+		m.showing_sugg = false
 		m.suggestions = []string{}
 	}
 }
 
 func (m Model) View() string {
 	// Show file picker if active
-	if m.showingFilePicker {
-		return m.renderFilePicker()
+	if m.showing_file_picker {
+		return m.render_file_picker()
 	}
 
-	if m.showingError {
+	if m.showing_error {
 		error_box := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			Padding(1).
 			Width(60).
 			BorderForeground(lipgloss.Color("1")).
-			Render(m.lastSendError + "\n\n(press any key to dismiss)")
+			Render(m.last_send_error + "\n\n(press any key to dismiss)")
 
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, error_box)
 	}
@@ -579,9 +579,9 @@ func (m Model) View() string {
 	}
 
 	// Build the content with autocomplete suggestions and colored cc/bcc if showing
-	toField := "To:\n" + m.buildToFieldWithColors()
+	toField := "To:\n" + m.build_to_field_with_colors()
 
-	if m.showingSugg && len(m.suggestions) > 0 {
+	if m.showing_sugg && len(m.suggestions) > 0 {
 		suggStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8")).
 			Padding(0, 2)
@@ -593,7 +593,7 @@ func (m Model) View() string {
 
 		toField += "\n"
 		for i, sugg := range m.suggestions {
-			if i == m.selectedSugg {
+			if i == m.selected_sugg {
 				toField += selectedStyle.Render("→ "+sugg) + "\n"
 			} else {
 				toField += suggStyle.Render("  "+sugg) + "\n"
@@ -610,17 +610,29 @@ func (m Model) View() string {
 	subjectField := m.subject.View()
 	if m.focus == 1 && len(m.typos) > 0 {
 		typoStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("1")) // Red
-		subjectField += "\n" + typoStyle.Render("✗ Typos: "+strings.Join(m.typos, ", "))
+		sett := settings.InitialModel()
+		unicode_support := sett.GetSetting("unicode support") == "y"
+		typo_indicator := "X"
+		if unicode_support {
+			typo_indicator = "✗"
+		}
+		subjectField += "\n" + typoStyle.Render(typo_indicator+" Typos: "+strings.Join(m.typos, ", "))
 	}
 
 	bodyField := m.body.View()
 	if m.focus == 2 && len(m.typos) > 0 {
 		typoStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("1")) // Red
-		bodyField += "\n" + typoStyle.Render("✗ Typos: "+strings.Join(m.typos, ", "))
+		sett := settings.InitialModel()
+		unicode_support := sett.GetSetting("unicode support") == "y"
+		typo_indicator := "X"
+		if unicode_support {
+			typo_indicator = "✗"
+		}
+		bodyField += "\n" + typoStyle.Render(typo_indicator+" Typos: "+strings.Join(m.typos, ", "))
 	}
 
 	// Build attachments section
-	attachmentsField := m.renderAttachments()
+	attachmentsField := m.render_attachments()
 
 	contentStr := toField +
 		"\n\nSubject:\n" + subjectField +
@@ -648,20 +660,20 @@ func (m Model) getFooterText() string {
 	return "ctrl+q quit • tab navigate • ctrl+a add attachment • ctrl+s save draft • ctrl+y send"
 }
 
-func (m Model) buildToFieldWithColors() string {
+func (m Model) build_to_field_with_colors() string {
 	toValue := m.to.Value()
 
 	// If not focused, show with colors; if focused, show editor with colors overlaid
 	if m.focus != 0 {
 		// Not focused on to field, show with colors
-		return m.colorizeToField(toValue)
+		return m.colorize_to_field(toValue)
 	}
 
 	// Focused on to field, show the input box
 	return m.to.View()
 }
 
-func (m Model) colorizeToField(toValue string) string {
+func (m Model) colorize_to_field(toValue string) string {
 	if toValue == "" {
 		return m.to.View()
 	}
@@ -788,82 +800,90 @@ func (m Model) GetBody() string {
 }
 
 // File picker helper functions
-func (m *Model) openFilePicker() {
-	m.showingFilePicker = true
-	m.filePickerPath = m.lastAttachmentPath
-	m.loadFilePickerDirectory()
-	m.filePickerSelected = 0
-	m.filePickerInput.SetValue("")
-	m.filePickerInput.Focus()
+func (m *Model) open_file_picker() {
+	m.showing_file_picker = true
+	m.file_picker_path = m.last_attachment_path
+	m.load_file_picker_directory()
+	m.file_picker_selected = 0
+	m.file_picker_input.SetValue("")
+	m.file_picker_input.Focus()
 }
 
-func (m *Model) loadFilePickerDirectory() {
-	entries, err := os.ReadDir(m.filePickerPath)
+func (m *Model) load_file_picker_directory() {
+	entries, err := os.ReadDir(m.file_picker_path)
 	if err != nil {
-		m.filePickerFiles = []os.FileInfo{}
+		m.file_picker_files = []os.FileInfo{}
 		return
 	}
 
-	m.filePickerFiles = []os.FileInfo{}
+	m.file_picker_files = []os.FileInfo{}
 	for _, entry := range entries {
 		info, err := entry.Info()
 		if err != nil {
 			continue
 		}
-		m.filePickerFiles = append(m.filePickerFiles, info)
+		m.file_picker_files = append(m.file_picker_files, info)
 	}
 }
 
-func (m *Model) getFilteredFiles() []os.FileInfo {
-	filterText := strings.ToLower(m.filePickerInput.Value())
-	if filterText == "" {
-		return m.filePickerFiles
+func (m *Model) get_filtered_files() []os.FileInfo {
+	filter_text := strings.ToLower(m.file_picker_input.Value())
+	if filter_text == "" {
+		return m.file_picker_files
 	}
 
 	var filtered []os.FileInfo
-	for _, f := range m.filePickerFiles {
-		if strings.Contains(strings.ToLower(f.Name()), filterText) {
+	for _, f := range m.file_picker_files {
+		if strings.Contains(strings.ToLower(f.Name()), filter_text) {
 			filtered = append(filtered, f)
 		}
 	}
 	return filtered
 }
 
-func (m *Model) selectFilePickerItem() {
-	filtered := m.getFilteredFiles()
-	if m.filePickerSelected >= len(filtered) {
+func (m *Model) select_file_picker_item() {
+	filtered := m.get_filtered_files()
+	if m.file_picker_selected >= len(filtered) {
 		return
 	}
 
-	selected := filtered[m.filePickerSelected]
+	selected := filtered[m.file_picker_selected]
 	if selected.IsDir() {
 		// Navigate into directory
-		m.filePickerPath = filepath.Join(m.filePickerPath, selected.Name())
-		m.loadFilePickerDirectory()
-		m.filePickerSelected = 0
-		m.filePickerInput.SetValue("")
+		m.file_picker_path = filepath.Join(m.file_picker_path, selected.Name())
+		m.load_file_picker_directory()
+		m.file_picker_selected = 0
+		m.file_picker_input.SetValue("")
 	} else {
 		// Add file as attachment
-		fullPath := filepath.Join(m.filePickerPath, selected.Name())
-		m.attachments = append(m.attachments, fullPath)
-		m.lastAttachmentPath = m.filePickerPath
-		m.showingFilePicker = false
+		full_path := filepath.Join(m.file_picker_path, selected.Name())
+		m.attachments = append(m.attachments, full_path)
+		m.last_attachment_path = m.file_picker_path
+		m.showing_file_picker = false
 	}
 }
 
-func (m *Model) filePickerGoUp() {
-	parent := filepath.Dir(m.filePickerPath)
-	if parent != m.filePickerPath {
-		m.filePickerPath = parent
-		m.loadFilePickerDirectory()
-		m.filePickerSelected = 0
-		m.filePickerInput.SetValue("")
+func (m *Model) file_picker_go_up() {
+	parent := filepath.Dir(m.file_picker_path)
+	if parent != m.file_picker_path {
+		m.file_picker_path = parent
+		m.load_file_picker_directory()
+		m.file_picker_selected = 0
+		m.file_picker_input.SetValue("")
 	}
 }
 
-func (m Model) renderAttachments() string {
+func (m Model) render_attachments() string {
 	if len(m.attachments) == 0 {
 		return ""
+	}
+
+	// Check unicode support
+	sett := settings.InitialModel()
+	unicode_support := sett.GetSetting("unicode support") == "y"
+	attachment_icon := "[A]"
+	if unicode_support {
+		attachment_icon = "📎"
 	}
 
 	attachStyle := lipgloss.NewStyle().
@@ -887,16 +907,16 @@ func (m Model) renderAttachments() string {
 
 		if m.focus == 3 {
 			// When focused, show with removal indicator
-			if i == m.selectedAttachment {
-				line = fmt.Sprintf("  [x] 📎 %s", fileName)
+			if i == m.selected_attachment {
+				line = fmt.Sprintf("  [x] %s %s", attachment_icon, fileName)
 				result += selectedStyle.Render(line) + "\n"
 			} else {
-				line = fmt.Sprintf("  [ ] 📎 %s", fileName)
+				line = fmt.Sprintf("  [ ] %s %s", attachment_icon, fileName)
 				result += attachStyle.Render(line) + "\n"
 			}
 		} else {
 			// When not focused, show simple list
-			line = fmt.Sprintf("  📎 %s", fileName)
+			line = fmt.Sprintf("  %s %s", attachment_icon, fileName)
 			result += attachStyle.Render(line) + "\n"
 		}
 	}
@@ -910,8 +930,8 @@ func (m Model) renderAttachments() string {
 	return result
 }
 
-func (m Model) renderFilePicker() string {
-	filtered := m.getFilteredFiles()
+func (m Model) render_file_picker() string {
+	filtered := m.get_filtered_files()
 
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -930,14 +950,14 @@ func (m Model) renderFilePicker() string {
 
 	var content strings.Builder
 	content.WriteString(titleStyle.Render("Select File to Attach") + "\n")
-	content.WriteString(normalStyle.Render("Current: "+m.filePickerPath) + "\n\n")
-	content.WriteString("Filter: " + m.filePickerInput.View() + "\n\n")
+	content.WriteString(normalStyle.Render("Current: "+m.file_picker_path) + "\n\n")
+	content.WriteString("Filter: " + m.file_picker_input.View() + "\n\n")
 
 	// Show files
 	maxVisible := 15
 	startIdx := 0
-	if m.filePickerSelected >= maxVisible {
-		startIdx = m.filePickerSelected - maxVisible + 1
+	if m.file_picker_selected >= maxVisible {
+		startIdx = m.file_picker_selected - maxVisible + 1
 	}
 
 	for i := startIdx; i < len(filtered) && i < startIdx+maxVisible; i++ {
@@ -947,7 +967,7 @@ func (m Model) renderFilePicker() string {
 			displayName += "/"
 		}
 
-		if i == m.filePickerSelected {
+		if i == m.file_picker_selected {
 			if f.IsDir() {
 				content.WriteString(selectedStyle.Render("→ " + displayName))
 			} else {

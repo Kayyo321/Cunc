@@ -26,6 +26,7 @@ var default_settings = map[string]string{
 	"should delete draft on send": "n",
 	"max typos displayed":         "3",
 	"prevent send with typos":     "y",
+	"unicode support":             "y",
 
 	"_header_Paths":                    "",
 	"default attachment download path": "~/Downloads",
@@ -43,6 +44,7 @@ var field_order = []string{
 	"should delete draft on send",
 	"max typos displayed",
 	"prevent send with typos",
+	"unicode support",
 
 	"_header_Paths",
 	"default attachment download path",
@@ -55,13 +57,13 @@ var sensitive_fields = map[string]bool{
 
 // Model holds the settings UI state
 type Model struct {
-	settings      map[string]string
-	fields        []string // ordered list including headers
-	focused       int
-	width         int
-	height        int
-	edit_values   map[int]*textinput.Model
-	titleAnimator title.Animator
+	settings       map[string]string
+	fields         []string // ordered list including headers
+	focused        int
+	width          int
+	height         int
+	edit_values    map[int]*textinput.Model
+	title_animator title.Animator
 }
 
 // InitialModel creates a new settings model
@@ -95,13 +97,13 @@ func InitialModel() Model {
 	}
 
 	return Model{
-		settings:      settings_map,
-		fields:        fields,
-		focused:       0,
-		width:         80,
-		height:        24,
-		edit_values:   edit_values,
-		titleAnimator: title.New(),
+		settings:       settings_map,
+		fields:         fields,
+		focused:        0,
+		width:          80,
+		height:         24,
+		edit_values:    edit_values,
+		title_animator: title.New(),
 	}
 }
 
@@ -117,7 +119,7 @@ func (m Model) GetSetting(key string) string {
 // Update handles UI events and navigation
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle title animation updates
-	if cmd := m.titleAnimator.Update(msg); cmd != nil {
+	if cmd := m.title_animator.Update(msg); cmd != nil {
 		return m, cmd
 	}
 
@@ -183,7 +185,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the settings UI
 func (m Model) View() string {
 	// Render animated title
-	titleView := m.titleAnimator.Render()
+	titleView := m.title_animator.Render()
 
 	if len(m.fields) == 0 {
 		box := lipgloss.NewStyle().

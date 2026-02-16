@@ -29,17 +29,17 @@ type Model struct {
 	err               error
 	Action            string // "select" or "quit"
 	confirming_delete bool
-	titleAnimator     title.Animator
+	title_animator    title.Animator
 }
 
 func InitialModel() Model {
 	drafts_list := load_drafts()
 	return Model{
-		drafts:        drafts_list,
-		selected:      0,
-		width:         80,
-		height:        24,
-		titleAnimator: title.New(),
+		drafts:         drafts_list,
+		selected:       0,
+		width:          80,
+		height:         24,
+		title_animator: title.New(),
 	}
 }
 
@@ -49,7 +49,7 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle title animation updates
-	if cmd := m.titleAnimator.Update(msg); cmd != nil {
+	if cmd := m.title_animator.Update(msg); cmd != nil {
 		return m, cmd
 	}
 
@@ -119,7 +119,7 @@ func (m Model) View() string {
 	}
 
 	// Render animated title
-	titleView := m.titleAnimator.Render()
+	titleView := m.title_animator.Render()
 
 	if len(m.drafts) == 0 {
 		box := lipgloss.NewStyle().

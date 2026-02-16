@@ -3,6 +3,7 @@ package director
 import (
 	"fmt"
 
+	"cunc/src/settings"
 	"cunc/src/title"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,12 +11,12 @@ import (
 )
 
 type Model struct {
-	options       []Option
-	selected      int
-	width         int
-	height        int
-	Action        string // "inbox", "drafts", "settings", "compose", "quit"
-	titleAnimator title.Animator
+	options        []Option
+	selected       int
+	width          int
+	height         int
+	Action         string // "inbox", "drafts", "settings", "compose", "quit"
+	title_animator title.Animator
 }
 
 type Option struct {
@@ -25,42 +26,81 @@ type Option struct {
 }
 
 func InitialModel() Model {
+	// Check unicode support setting
+	sett := settings.InitialModel()
+	unicode_support := sett.GetSetting("unicode support") == "y"
+
 	options := []Option{
 		{
-			name:        "📥 Inbox",
+			name:        get_inbox_name(unicode_support),
 			description: "View and manage your emails",
 			action:      "inbox",
 		},
 		{
-			name:        "✏️  Compose",
+			name:        get_compose_name(unicode_support),
 			description: "Write a new email",
 			action:      "compose",
 		},
 		{
-			name:        "📝 Drafts",
+			name:        get_drafts_name(unicode_support),
 			description: "View and edit saved drafts",
 			action:      "drafts",
 		},
 		{
-			name:        "⚙️  Settings",
+			name:        get_settings_name(unicode_support),
 			description: "Configure your email and preferences",
 			action:      "settings",
 		},
 		{
-			name:        "🚪 Quit",
+			name:        get_quit_name(unicode_support),
 			description: "Exit the application",
 			action:      "quit",
 		},
 	}
 
 	return Model{
-		options:       options,
-		selected:      0,
-		width:         80,
-		height:        24,
-		Action:        "",
-		titleAnimator: title.New(),
+		options:        options,
+		selected:       0,
+		width:          80,
+		height:         24,
+		Action:         "",
+		title_animator: title.New(),
 	}
+}
+
+func get_inbox_name(unicode_support bool) string {
+	if unicode_support {
+		return "📥 Inbox"
+	}
+	return "[Inbox]"
+}
+
+func get_compose_name(unicode_support bool) string {
+	if unicode_support {
+		return "✏️  Compose"
+	}
+	return "[Compose]"
+}
+
+func get_drafts_name(unicode_support bool) string {
+	if unicode_support {
+		return "📝 Drafts"
+	}
+	return "[Drafts]"
+}
+
+func get_settings_name(unicode_support bool) string {
+	if unicode_support {
+		return "⚙️  Settings"
+	}
+	return "[Settings]"
+}
+
+func get_quit_name(unicode_support bool) string {
+	if unicode_support {
+		return "🚪 Quit"
+	}
+	return "[Quit]"
 }
 
 func (m Model) Init() tea.Cmd {
@@ -69,7 +109,7 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle title animation updates
-	if cmd := m.titleAnimator.Update(msg); cmd != nil {
+	if cmd := m.title_animator.Update(msg); cmd != nil {
 		return m, cmd
 	}
 
@@ -106,7 +146,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	// Render animated title
-	titleView := m.titleAnimator.Render()
+	titleView := m.title_animator.Render()
 
 	// Welcome message
 	welcomeStyle := lipgloss.NewStyle().

@@ -63,7 +63,7 @@ func FetchLatest(username, password string, max int) ([]Email, error) {
 		env := msg.Envelope
 
 		// Default body
-		bodyStr := ""
+		body_str := ""
 		var attachments []Attachment
 
 		if r := msg.GetBody(section); r != nil {
@@ -82,10 +82,10 @@ func FetchLatest(username, password string, max int) ([]Email, error) {
 					case *mail.InlineHeader:
 						b, _ := io.ReadAll(p.Body)
 						ctype, _, _ := h.ContentType()
-						if strings.HasPrefix(ctype, "text/plain") && bodyStr == "" {
-							bodyStr = string(b)
-						} else if bodyStr == "" {
-							bodyStr = string(b)
+						if strings.HasPrefix(ctype, "text/plain") && body_str == "" {
+							body_str = string(b)
+						} else if body_str == "" {
+							body_str = string(b)
 						}
 					case *mail.AttachmentHeader:
 						// Extract attachment
@@ -105,22 +105,22 @@ func FetchLatest(username, password string, max int) ([]Email, error) {
 		}
 
 		id := fmt.Sprintf("%d", msg.SeqNum)
-		fromAddr := ""
+		from_addr := ""
 		if len(env.From) > 0 {
 			addr := env.From[0]
 			if addr.MailboxName != "" && addr.HostName != "" {
-				fromAddr = addr.MailboxName + "@" + addr.HostName
+				from_addr = addr.MailboxName + "@" + addr.HostName
 			} else {
-				fromAddr = addr.Address()
+				from_addr = addr.Address()
 			}
 		}
 
 		subj := env.Subject
 		results = append(results, Email{
 			ID:          id,
-			From:        fromAddr,
+			From:        from_addr,
 			Subject:     subj,
-			Body:        bodyStr,
+			Body:        body_str,
 			Attachments: attachments,
 		})
 	}

@@ -14,8 +14,8 @@ const Version = "0.1.0"
 
 // Animator handles the animated title state and rendering
 type Animator struct {
-	animFrame  int
-	animOffset int
+	anim_frame  int
+	anim_offset int
 }
 
 // TickMsg is sent periodically to update the animation
@@ -24,8 +24,8 @@ type TickMsg time.Time
 // New creates a new title animator
 func New() Animator {
 	return Animator{
-		animFrame:  0,
-		animOffset: 0,
+		anim_frame:  0,
+		anim_offset: 0,
 	}
 }
 
@@ -33,10 +33,10 @@ func New() Animator {
 func (a *Animator) Update(msg tea.Msg) tea.Cmd {
 	switch msg.(type) {
 	case TickMsg:
-		a.animFrame++
-		if a.animFrame >= 30 {
-			a.animFrame = 0
-			a.animOffset++
+		a.anim_frame++
+		if a.anim_frame >= 30 {
+			a.anim_frame = 0
+			a.anim_offset++
 		}
 		return TickCmd()
 	}
@@ -52,7 +52,7 @@ func TickCmd() tea.Cmd {
 
 // Render renders the animated title with a left-to-right color animation
 func (a Animator) Render() string {
-	titleText := "  cunc  "
+	title_text := "  cunc  "
 
 	// Color palette for the animation (vibrant colors)
 	colors := []lipgloss.Color{
@@ -79,36 +79,36 @@ func (a Animator) Render() string {
 	}
 
 	// Build the title character by character with animated colors
-	var coloredTitle strings.Builder
-	for i, char := range titleText {
+	var colored_title strings.Builder
+	for i, char := range title_text {
 		// Calculate color index based on character position and animation offset
 		// The wave moves left to right
-		colorIndex := (i + a.animOffset) % len(colors)
+		color_index := (i + a.anim_offset) % len(colors)
 		style := lipgloss.NewStyle().
 			Bold(true).
-			Foreground(colors[colorIndex])
-		coloredTitle.WriteString(style.Render(string(char)))
+			Foreground(colors[color_index])
+		colored_title.WriteString(style.Render(string(char)))
 	}
 
 	// Wrap title in a box
-	titleBoxStyle := lipgloss.NewStyle().
+	title_box_style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("63")). // Nice blue border
 		Padding(0, 1).
 		Bold(true)
 
-	titleBox := titleBoxStyle.Render(coloredTitle.String())
+	title_box := title_box_style.Render(colored_title.String())
 
 	// Create version box
-	versionBoxStyle := lipgloss.NewStyle().
+	version_box_style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("99")). // Purple border
 		Foreground(lipgloss.Color("99")).
 		Padding(0, 1).
 		Bold(true)
 
-	versionBox := versionBoxStyle.Render("v" + Version)
+	version_box := version_box_style.Render("v" + Version)
 
 	// Join title and version horizontally with a space
-	return lipgloss.JoinHorizontal(lipgloss.Top, titleBox, " ", versionBox)
+	return lipgloss.JoinHorizontal(lipgloss.Top, title_box, " ", version_box)
 }

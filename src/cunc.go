@@ -68,17 +68,17 @@ func view_inbox() {
 	}
 
 	// Determine per-page from settings
-	perPage := 10
+	per_page := 10
 	if s := sm.GetSetting("emails per page"); s != "" {
 		if v, err := strconv.Atoi(s); err == nil && v > 0 {
-			perPage = v
+			per_page = v
 		}
 	}
 
 	var inbox_model inbox.Model
 	// If credentials present, start with loading=true and let the inbox model fetch
 	if user != "" && pass != "" {
-		inbox_model = inbox.InitialModel([]inbox.Email{}, perPage, true, user, pass, 50)
+		inbox_model = inbox.InitialModel([]inbox.Email{}, per_page, true, user, pass, 50)
 	} else {
 		// No credentials: provide sample emails and no loading
 		emails := []inbox.Email{
@@ -86,7 +86,7 @@ func view_inbox() {
 			{ID: "2", From: "bob@example.com", Subject: "Meeting", Body: "Don't forget our meeting tomorrow at 10am."},
 			{ID: "3", From: "carol@example.com", Subject: "Greetings", Body: "Just wanted to say hi."},
 		}
-		inbox_model = inbox.InitialModel(emails, perPage, false, "", "", 0)
+		inbox_model = inbox.InitialModel(emails, per_page, false, "", "", 0)
 	}
 
 	// Run Bubble Tea program
