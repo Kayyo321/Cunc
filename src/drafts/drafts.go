@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
+	"cunc/src/settings"
 	"cunc/src/title"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -237,11 +239,27 @@ func load_drafts() []Draft {
 }
 
 func get_draft_dir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ".cunc_drafts"
+	sett := settings.InitialModel()
+	draft_dir := sett.GetSetting("drafts directory")
+
+	// Expand ~ to home directory
+	if strings.HasPrefix(draft_dir, "~/") {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			draft_dir = filepath.Join(home, draft_dir[2:])
+		}
 	}
-	return filepath.Join(home, ".local", "share", "cunc", "drafts")
+
+	// Fallback if setting is empty
+	if draft_dir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ".cunc_drafts"
+		}
+		return filepath.Join(home, ".local", "share", "cunc", "drafts")
+	}
+
+	return draft_dir
 }
 
 func delete_draft_file(draft_id string) error {

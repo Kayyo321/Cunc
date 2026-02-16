@@ -26,10 +26,11 @@ var default_settings = map[string]string{
 	"should delete draft on send": "n",
 	"max typos displayed":         "3",
 	"prevent send with typos":     "y",
-	"unicode support":             "y",
+	"unicode support":             "n",
 
 	"_header_Paths":                    "",
 	"default attachment download path": "~/Downloads",
+	"drafts directory":                 "~/.local/share/cunc/drafts",
 }
 
 // field_order defines the exact order in which headers and settings appear
@@ -48,6 +49,7 @@ var field_order = []string{
 
 	"_header_Paths",
 	"default attachment download path",
+	"drafts directory",
 }
 
 // sensitive_fields marks which settings should not be saved to normal JSON
