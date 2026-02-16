@@ -1,0 +1,191 @@
+package inbox
+
+import (
+	"fmt"
+	"sort"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+type Email struct {
+	ID      string
+	From    string
+	Subject string
+	Body    string
+}
+
+type Model struct {
+	emails        []Email
+	selected      int
+	page          int
+	emailsPerPage int
+	width         int
+	height        int
+	viewingEmail  bool
+	Action        string // "select" or "quit"
+}
+
+func InitialModel(emails []Email) Model {
+	// Sort emails by ID descending (most recent first)
+	sort.Slice(emails, func(i, j int) bool {
+		return emails[i].ID > emails[j].ID
+	})
+
+	return Model{
+		emails:        emails,
+		selected:      0,
+		page:          0,
+		emailsPerPage: 10,
+		width:         80,
+		height:        24,
+		viewingEmail:  false,
+	}
+}
+
+func (m Model) Init() tea.Cmd {
+	return nil
+}
+
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+q":
+			fmt.Print("\033[2J")
+			m.Action = "quit"
+			return m, tea.Quit
+
+		case "up", "k":
+			if m.selected > 0 {
+				m.selected--
+			} else if m.page > 0 {
+				m.page--
+				m.selected = m.emailsPerPage - 1
+			}
+
+		case "down", "j":
+			if m.selected < m.currentPageCount()-1 {
+				m.selected++
+			} else if (m.page+1)*m.emailsPerPage < len(m.emails) {
+				m.page++
+				m.selected = 0
+			}
+
+		case "left", "<-":
+			if m.page > 0 {
+				m.page--
+				m.selected = 0
+			}
+
+		case "right", "->":
+			if (m.page+1)*m.emailsPerPage < len(m.emails) {
+				m.page++
+				m.selected = 0
+			}
+
+		case "enter":
+			if !m.viewingEmail && len(m.emails) > 0 {
+				m.viewingEmail = true
+			} else if m.viewingEmail {
+				m.viewingEmail = false
+			}
+		}
+	}
+
+	return m, nil
+}
+
+func (m Model) View() string {
+	// Title
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("5")).
+		Render("Cunc")
+
+	var body string
+	if m.viewingEmail {
+		email := m.getSelectedEmail()
+		if email != nil {
+			body = fmt.Sprintf("From: %s\nSubject: %s\n\n%s",
+				email.From, email.Subject, email.Body)
+		} else {
+			body = "No email selected."
+		}
+	} else {
+		body = m.renderEmailList()
+	}
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		Padding(1).
+		Width(m.width - 2).
+		Height(max(m.height-6, 3)).
+		Render(body)
+
+	footer := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("8")).
+		Padding(0, 1).
+		Width(m.width - 2).
+		Render("↑/k up • ↓/j down • <- previous page • -> next page • enter view • ctrl+q quit")
+
+	return lipgloss.JoinVertical(lipgloss.Left, title, box, footer)
+}
+
+// renderEmailList shows the current page of emails
+func (m Model) renderEmailList() string {
+	start := m.page * m.emailsPerPage
+	end := start + m.emailsPerPage
+	if end > len(m.emails) {
+		end = len(m.emails)
+	}
+
+	emails := m.emails[start:end]
+	var lines string
+	for i, email := range emails {
+		line := fmt.Sprintf("  From: %s | Subject: %s", email.From, email.Subject)
+		if i == m.selected {
+			line = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("7")).
+				Background(lipgloss.Color("4")).
+				Render(line)
+		} else {
+			line = lipgloss.NewStyle().Render(line)
+		}
+
+		if i > 0 {
+			lines += "\n"
+		}
+		lines += line
+	}
+
+	return lines
+}
+
+func (m Model) getSelectedEmail() *Email {
+	idx := m.page*m.emailsPerPage + m.selected
+	if idx >= 0 && idx < len(m.emails) {
+		return &m.emails[idx]
+	}
+	return nil
+}
+
+func (m Model) currentPageCount() int {
+	remaining := len(m.emails) - m.page*m.emailsPerPage
+	if remaining > m.emailsPerPage {
+		return m.emailsPerPage
+	}
+	return remaining
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
