@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cunc/src/director"
 	"cunc/src/drafts"
 	"cunc/src/editor"
 	"cunc/src/inbox"
@@ -96,34 +97,64 @@ func view_inbox() {
 }
 
 func main() {
-	modes := map[string]func(){
-		"-help": usage,
-		"-h":    usage,
+	// If command line arguments provided, use legacy direct mode access
+	if len(os.Args) == 2 {
+		modes := map[string]func(){
+			"-help": usage,
+			"-h":    usage,
 
-		"-compose": editor.Compose,
-		"-c":       editor.Compose,
+			"-compose": editor.Compose,
+			"-c":       editor.Compose,
 
-		"-drafts": view_drafts,
-		"-d":      view_drafts,
+			"-drafts": view_drafts,
+			"-d":      view_drafts,
 
-		"-settings": view_settings,
-		"-s":        view_settings,
+			"-settings": view_settings,
+			"-s":        view_settings,
 
-		"-inbox": view_inbox,
-		"-i":     view_inbox,
+			"-inbox": view_inbox,
+			"-i":     view_inbox,
+		}
+
+		mode := os.Args[1]
+		if handler, ok := modes[mode]; ok {
+			handler()
+			return
+		} else {
+			fmt.Fprintf(os.Stderr, "Unknown mode: '%s'\n", mode)
+			usage()
+			return
+		}
 	}
 
-	if len(os.Args) != 2 {
-		usage()
-		os.Exit(1)
-	}
+	// No arguments: run director mode with navigation loop
+	for {
+		director_model := director.InitialModel()
+		p := tea.NewProgram(director_model)
+		model_result, err := p.Run()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 
-	mode := os.Args[1]
-	if handler, ok := modes[mode]; ok {
-		handler()
-	} else {
-		fmt.Fprintf(os.Stderr, "Unknown mode: '%s'\n", mode)
+		director_result := model_result.(director.Model)
+		action := director_result.Action
 
-		usage()
+		// Handle the selected action
+		switch action {
+		case "inbox":
+			view_inbox()
+		case "compose":
+			editor.Compose()
+		case "drafts":
+			view_drafts()
+		case "settings":
+			view_settings()
+		case "quit":
+			fmt.Print("\033[2J") // Clear screen
+			return
+		default:
+			return
+		}
 	}
 }
