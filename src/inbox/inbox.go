@@ -9,6 +9,7 @@ import (
 
 	"cunc/src/contacts"
 	"cunc/src/settings"
+	"cunc/src/title"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -52,6 +53,12 @@ type Model struct {
 	// download status
 	downloadMessage string
 	showingDownload bool
+
+	// title animation
+	titleAnimator title.Animator
+
+	// spinner animation
+	spinnerFrame int
 }
 
 func InitialModel(emails []Email, emailsPerPage int, loading bool, fetchUser, fetchPass string, fetchMax int) Model {
@@ -77,17 +84,30 @@ func InitialModel(emails []Email, emailsPerPage int, loading bool, fetchUser, fe
 		contactHistory:     contacts.Load(),
 		downloadMessage:    "",
 		showingDownload:    false,
+		titleAnimator:      title.New(),
+		spinnerFrame:       0,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
+	var cmds []tea.Cmd
 	if m.Loading && m.fetchUser != "" && m.fetchPass != "" {
-		return FetchEmailsCmd(m.fetchUser, m.fetchPass, m.fetchMax)
+		cmds = append(cmds, FetchEmailsCmd(m.fetchUser, m.fetchPass, m.fetchMax))
 	}
-	return nil
+	cmds = append(cmds, title.TickCmd())
+	return tea.Batch(cmds...)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle title animation updates and spinner
+	if cmd := m.titleAnimator.Update(msg); cmd != nil {
+		// Also update spinner frame on each tick
+		if _, ok := msg.(title.TickMsg); ok {
+			m.spinnerFrame++
+		}
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -231,16 +251,12 @@ func (m Model) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, messageBox)
 	}
 
-	// Stylized title
-	title := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("5")).
-		Padding(0, 2).
-		Render("  C U N C  ")
+	// Animated title with box
+	title := m.titleAnimator.Render()
 
 	var body string
 	if m.Loading {
-		body = "Fetching emails..."
+		body = m.renderLoadingSpinner()
 	} else if m.viewingAttachments {
 		body = m.renderAttachmentList()
 	} else if m.viewingEmail {
@@ -483,4 +499,24 @@ func formatSize(bytes int) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// renderLoadingSpinner renders a spinning wheel animation for loading state
+func (m Model) renderLoadingSpinner() string {
+	// Spinner frames using Unicode characters
+	spinners := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	frame := spinners[m.spinnerFrame%len(spinners)]
+
+	// Style the spinner with cyan color
+	spinnerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("51")).
+		Bold(true)
+
+	message := spinnerStyle.Render(frame) + " Fetching emails..."
+
+	// Center the message
+	centerStyle := lipgloss.NewStyle().
+		Padding(2, 0)
+
+	return centerStyle.Render(message)
 }

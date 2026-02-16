@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 
+	"cunc/src/title"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -27,23 +29,30 @@ type Model struct {
 	err               error
 	Action            string // "select" or "quit"
 	confirming_delete bool
+	titleAnimator     title.Animator
 }
 
 func InitialModel() Model {
 	drafts_list := load_drafts()
 	return Model{
-		drafts:   drafts_list,
-		selected: 0,
-		width:    80,
-		height:   24,
+		drafts:        drafts_list,
+		selected:      0,
+		width:         80,
+		height:        24,
+		titleAnimator: title.New(),
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return nil
+	return title.TickCmd()
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle title animation updates
+	if cmd := m.titleAnimator.Update(msg); cmd != nil {
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -109,6 +118,9 @@ func (m Model) View() string {
 		}
 	}
 
+	// Render animated title
+	titleView := m.titleAnimator.Render()
+
 	if len(m.drafts) == 0 {
 		box := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -124,7 +136,7 @@ func (m Model) View() string {
 			Width(m.width - 2).
 			Render("ctrl+q quit")
 
-		return lipgloss.JoinVertical(lipgloss.Left, content, footer)
+		return lipgloss.JoinVertical(lipgloss.Left, titleView, content, footer)
 	}
 
 	var draft_lines string
@@ -160,7 +172,7 @@ func (m Model) View() string {
 		Width(m.width - 2).
 		Render("↑/k up • ↓/j down • enter select • d delete • ctrl+q quit")
 
-	return lipgloss.JoinVertical(lipgloss.Left, content, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, titleView, content, footer)
 }
 
 func (m Model) GetSelectedDraft() *Draft {

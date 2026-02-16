@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"cunc/src/title"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -53,12 +55,13 @@ var sensitive_fields = map[string]bool{
 
 // Model holds the settings UI state
 type Model struct {
-	settings    map[string]string
-	fields      []string // ordered list including headers
-	focused     int
-	width       int
-	height      int
-	edit_values map[int]*textinput.Model
+	settings      map[string]string
+	fields        []string // ordered list including headers
+	focused       int
+	width         int
+	height        int
+	edit_values   map[int]*textinput.Model
+	titleAnimator title.Animator
 }
 
 // InitialModel creates a new settings model
@@ -92,16 +95,17 @@ func InitialModel() Model {
 	}
 
 	return Model{
-		settings:    settings_map,
-		fields:      fields,
-		focused:     0,
-		width:       80,
-		height:      24,
-		edit_values: edit_values,
+		settings:      settings_map,
+		fields:        fields,
+		focused:       0,
+		width:         80,
+		height:        24,
+		edit_values:   edit_values,
+		titleAnimator: title.New(),
 	}
 }
 
-func (m Model) Init() tea.Cmd { return nil }
+func (m Model) Init() tea.Cmd { return title.TickCmd() }
 
 func (m Model) GetSetting(key string) string {
 	if value, exists := m.settings[key]; exists {
@@ -112,6 +116,11 @@ func (m Model) GetSetting(key string) string {
 
 // Update handles UI events and navigation
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle title animation updates
+	if cmd := m.titleAnimator.Update(msg); cmd != nil {
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -173,6 +182,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the settings UI
 func (m Model) View() string {
+	// Render animated title
+	titleView := m.titleAnimator.Render()
+
 	if len(m.fields) == 0 {
 		box := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -185,7 +197,7 @@ func (m Model) View() string {
 			Padding(0, 1).
 			Width(m.width - 2).
 			Render("ctrl+s save • ctrl+q quit")
-		return lipgloss.JoinVertical(lipgloss.Left, content, footer)
+		return lipgloss.JoinVertical(lipgloss.Left, titleView, content, footer)
 	}
 
 	var settings_lines string
@@ -240,7 +252,7 @@ func (m Model) View() string {
 		Width(m.width - 2).
 		Render("↑/↓ navigate • edit value • ctrl+s save • ctrl+q quit")
 
-	return lipgloss.JoinVertical(lipgloss.Left, content, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, titleView, content, footer)
 }
 
 // save_settings saves both normal and sensitive fields
