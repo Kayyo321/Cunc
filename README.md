@@ -11,10 +11,15 @@
 ### Key Features
 
 - **IMAP Email Fetching** - Connect to your email provider and fetch emails directly
+- **Inbox & Sent Folders** - View both received and sent emails with Tab switching
+- **HTML Email Support** - Automatically converts HTML emails to readable plain text
+- **Scrollable Email Viewer** - Scroll through long emails with boxed, organized layout
 - **Rich Email Composition** - Write emails with spell checking and typo detection
 - **Draft Management** - Save and resume email drafts
 - **Attachment Support** - Add, view, and download email attachments
 - **Contact Autocomplete** - Quick recipient suggestions based on email history
+- **Smart Text Wrapping** - Preserves URLs and prevents line breaks in links
+- **Search Functionality** - Search emails by subject or content
 - **Customizable Settings** - Tailor Cunc to your preferences
 - **Beautiful TUI** - Clean, animated interface with Unicode support
 
@@ -160,6 +165,41 @@ Navigate with **↑/↓**, edit values directly, then press **Ctrl+S** to save.
 
 ---
 
+## Email Viewing Features
+
+### Inbox & Sent Folders
+
+Switch between viewing your received emails (Inbox) and sent emails (Sent) by pressing **Tab**. The current view is indicated at the top of the screen:
+- **[ INBOX ]** - Shows received emails
+- **[ SENT ]** - Shows emails you've sent
+
+Each view maintains its own:
+- Email list and pagination
+- Search results
+- Scroll positions
+
+### Email Display
+
+Emails are displayed with a clean, organized layout:
+- **From Box** (blue border) - Sender's email address
+- **Subject Box** (purple border) - Email subject line  
+- **Body Box** (green border) - Email content with smart wrapping
+
+**Smart Features:**
+- **HTML Support**: HTML emails are automatically converted to readable plain text
+- **URL Preservation**: Long URLs are kept intact on their own lines (supports `http://`, `https://`, `<url>`, `[url]`, `(url)`)
+- **Truncated Lists**: Email subjects in the list view are automatically truncated to fit on one line
+- **Known Contacts**: Emails from known contacts are marked with a ★ (star) in the email list
+
+### Scrolling Through Emails
+
+When viewing an email that's longer than the screen:
+1. Use **↑/k** to scroll up
+2. Use **↓/j** to scroll down
+3. Line indicators show your position (e.g., `[32-70 of 77 lines]`)
+
+---
+
 ## Keyboard Shortcuts
 
 ### Director (Main Menu)
@@ -179,16 +219,26 @@ Navigate with **↑/↓**, edit values directly, then press **Ctrl+S** to save.
 | `h` / `←` | Previous page |
 | `l` / `→` | Next page |
 | `Enter` | View selected email |
-| `Ctrl+R` | Refresh inbox |
+| `Tab` | Switch between Inbox and Sent folders |
+| `Ctrl+F` | Search emails |
+| `Ctrl+R` | Refresh current view |
 | `Ctrl+Q` | Quit to main menu |
 
 **While viewing an email:**
 
 | Key | Action |
 |-----|--------|
+| `↑` / `k` | Scroll up in email |
+| `↓` / `j` | Scroll down in email |
 | `a` | View attachments |
-| `Esc` | Back to inbox list |
+| `Enter` / `Esc` | Back to inbox list |
 | `Ctrl+Q` | Quit |
+
+**Features:**
+- **Boxed Layout**: From, Subject, and Body are displayed in separate styled boxes
+- **HTML Conversion**: HTML emails are automatically converted to plain text
+- **Smart Scrolling**: Long emails show line indicators (e.g., [1-20 of 77 lines])
+- **URL Preservation**: Long URLs remain intact and clickable
 
 **While viewing attachments:**
 
@@ -198,6 +248,21 @@ Navigate with **↑/↓**, edit values directly, then press **Ctrl+S** to save.
 | `↓` / `j` | Move down |
 | `d` | Download selected attachment |
 | `Esc` | Back to email |
+
+### Search (Ctrl+F in Inbox)
+
+| Key | Action |
+|-----|--------|
+| Type | Enter search query |
+| `←` / `→` | Move cursor in search field |
+| `Backspace` | Delete character |
+| `Enter` | View search results |
+| `Esc` | Cancel search |
+
+**Features:**
+- **Live Search**: Results update as you type
+- **Subject & Body**: Searches both subject lines and email content
+- **View Context**: See which folders are being searched (Inbox or Sent)
 
 ### Compose / Editor
 
