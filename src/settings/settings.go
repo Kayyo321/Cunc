@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -13,41 +12,70 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// DefaultSettings defines all available settings with their default values
-var DefaultSettings = map[string]string{
-	"email":    "",
-	"password": "",
+// default_settings holds default values for each setting (and headers)
+var default_settings = map[string]string{
+	"_header_Account":  "",
+	"email":            "",
+	"password":         "",
+	"2fa app-password": "",
+
+	"_header_Preferences":         "",
+	"should delete draft on send": "n",
 }
 
-// SensitiveFields marks which settings should not be saved to the JSON file
-var SensitiveFields = map[string]bool{
+// field_order defines the exact order in which headers and settings appear
+var field_order = []string{
+	"_header_Account",
+	"email",
+	"password",
+	"2fa app-password",
+
+	"_header_Preferences",
+	"should delete draft on send",
+}
+
+// sensitive_fields marks which settings should not be saved to normal JSON
+var sensitive_fields = map[string]bool{
 	"password": true,
 }
 
+// Model holds the settings UI state
 type Model struct {
 	settings    map[string]string
-	fields      []string // ordered list of field names
+	fields      []string // ordered list including headers
 	focused     int
 	width       int
 	height      int
-	edit_values map[int]*textinput.Model // input models for each field
+	edit_values map[int]*textinput.Model
 }
 
+// InitialModel creates a new settings model
 func InitialModel() Model {
 	settings_map := load_settings()
-	fields := get_sorted_keys(settings_map)
+	fields := field_order // preserve the order
 
 	edit_values := make(map[int]*textinput.Model)
+
+	// Automatically focus first non-header field
+	focused_set := false
+
 	for i, field := range fields {
+		if strings.HasPrefix(field, "_header_") {
+			continue
+		}
+
 		input := textinput.New()
 		input.SetValue(settings_map[field])
-		if i == 0 {
+
+		if !focused_set {
 			input.Focus()
+			focused_set = true
 		}
-		// Mask password field
+
 		if field == "password" {
 			input.EchoMode = textinput.EchoPassword
 		}
+
 		edit_values[i] = &input
 	}
 
@@ -61,9 +89,7 @@ func InitialModel() Model {
 	}
 }
 
-func (m Model) Init() tea.Cmd {
-	return nil
-}
+func (m Model) Init() tea.Cmd { return nil }
 
 func (m Model) GetSetting(key string) string {
 	if value, exists := m.settings[key]; exists {
@@ -72,9 +98,9 @@ func (m Model) GetSetting(key string) string {
 	return ""
 }
 
+// Update handles UI events and navigation
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -92,22 +118,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "up":
-			if m.focused > 0 {
-				m.edit_values[m.focused].Blur()
+			for m.focused > 0 {
+				if m.edit_values[m.focused] != nil {
+					m.edit_values[m.focused].Blur()
+				}
 				m.focused--
-				m.edit_values[m.focused].Focus()
+				if !strings.HasPrefix(m.fields[m.focused], "_header_") {
+					if m.edit_values[m.focused] != nil {
+						m.edit_values[m.focused].Focus()
+					}
+					break
+				}
 			}
 
 		case "down":
-			if m.focused < len(m.fields)-1 {
-				m.edit_values[m.focused].Blur()
+			for m.focused < len(m.fields)-1 {
+				if m.edit_values[m.focused] != nil {
+					m.edit_values[m.focused].Blur()
+				}
 				m.focused++
-				m.edit_values[m.focused].Focus()
+				if !strings.HasPrefix(m.fields[m.focused], "_header_") {
+					if m.edit_values[m.focused] != nil {
+						m.edit_values[m.focused].Focus()
+					}
+					break
+				}
 			}
 		}
 	}
 
-	// Handle editing of focused field
+	// Update value of focused field
 	if m.focused < len(m.fields) && m.edit_values[m.focused] != nil {
 		var cmd tea.Cmd
 		*m.edit_values[m.focused], cmd = m.edit_values[m.focused].Update(msg)
@@ -119,6 +159,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// View renders the settings UI
 func (m Model) View() string {
 	if len(m.fields) == 0 {
 		box := lipgloss.NewStyle().
@@ -126,37 +167,39 @@ func (m Model) View() string {
 			Padding(1).
 			Width(m.width - 2).
 			Height(max(m.height-6, 3))
-
 		content := box.Render("No settings configured.")
-
 		footer := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8")).
 			Padding(0, 1).
 			Width(m.width - 2).
 			Render("ctrl+s save • ctrl+q quit")
-
 		return lipgloss.JoinVertical(lipgloss.Left, content, footer)
 	}
 
 	var settings_lines string
 	for i, field := range m.fields {
 		var line string
-		if i == m.focused && m.edit_values[i] != nil {
-			// Show the focused field with its input view (including cursor)
-			line = fmt.Sprintf("  %s: %s", field, m.edit_values[i].View())
+
+		if strings.HasPrefix(field, "_header_") {
+			header_name := strings.TrimPrefix(field, "_header_")
+			line = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("5")).
+				Bold(true).
+				Render(header_name)
 		} else {
-			// Show non-focused fields as plain text
-			value := ""
-			if m.edit_values[i] != nil {
-				if field == "password" {
-					// Show masked password
-					password_value := m.edit_values[i].Value()
-					value = strings.Repeat("*", len(password_value))
-				} else {
-					value = m.edit_values[i].Value()
+			if i == m.focused && m.edit_values[i] != nil {
+				line = fmt.Sprintf("  %s: %s", field, m.edit_values[i].View())
+			} else {
+				value := ""
+				if m.edit_values[i] != nil {
+					if field == "password" {
+						value = strings.Repeat("*", len(m.edit_values[i].Value()))
+					} else {
+						value = m.edit_values[i].Value()
+					}
 				}
+				line = fmt.Sprintf("  %s: %s", field, value)
 			}
-			line = fmt.Sprintf("  %s: %s", field, value)
 		}
 
 		if i == m.focused {
@@ -177,7 +220,6 @@ func (m Model) View() string {
 		Padding(1).
 		Width(m.width - 2).
 		Height(max(m.height-6, 3))
-
 	content := box.Render(settings_lines)
 
 	footer := lipgloss.NewStyle().
@@ -189,89 +231,63 @@ func (m Model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, content, footer)
 }
 
+// save_settings saves both normal and sensitive fields
 func (m *Model) save_settings() {
 	settings_dir := get_settings_dir()
-	if err := os.MkdirAll(settings_dir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating settings directory: %v\n", err)
-		return
-	}
+	_ = os.MkdirAll(settings_dir, 0755)
 
-	// Only save non-sensitive defined settings
+	// Save non-sensitive settings
 	settings_to_save := make(map[string]string)
-	for k := range DefaultSettings {
-		if !SensitiveFields[k] {
+	for _, k := range field_order {
+		if !sensitive_fields[k] && !strings.HasPrefix(k, "_header_") {
 			if v, exists := m.settings[k]; exists {
 				settings_to_save[k] = v
 			}
 		}
 	}
 
-	settings_path := filepath.Join(settings_dir, "settings.json")
-	data, err := json.MarshalIndent(settings_to_save, "", "  ")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error marshaling settings: %v\n", err)
-		return
-	}
+	_ = os.WriteFile(filepath.Join(settings_dir, "settings.json"),
+		must_marshal_indent(settings_to_save), 0644)
 
-	if err := os.WriteFile(settings_path, data, 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving settings: %v\n", err)
-		return
-	}
-
-	// Save sensitive fields to a restricted file (0600: owner read/write only)
+	// Save sensitive fields
 	sensitive_to_save := make(map[string]string)
-	for field := range SensitiveFields {
-		if value, exists := m.settings[field]; exists {
-			sensitive_to_save[field] = value
+	for k := range sensitive_fields {
+		if v, exists := m.settings[k]; exists {
+			sensitive_to_save[k] = v
 		}
 	}
 
-	sensitive_path := filepath.Join(settings_dir, "sensitive.json")
-	sensitive_data, err := json.MarshalIndent(sensitive_to_save, "", "  ")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error marshaling sensitive settings: %v\n", err)
-		return
-	}
-
-	if err := os.WriteFile(sensitive_path, sensitive_data, 0600); err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving sensitive settings: %v\n", err)
-		return
-	}
+	_ = os.WriteFile(filepath.Join(settings_dir, "sensitive.json"),
+		must_marshal_indent(sensitive_to_save), 0600)
 }
 
+// load_settings loads saved settings and merges with defaults
 func load_settings() map[string]string {
-	// Start with defaults
 	settings_map := make(map[string]string)
-	for k, v := range DefaultSettings {
+	for k, v := range default_settings {
 		settings_map[k] = v
 	}
 
-	// Merge with saved settings from JSON
 	settings_dir := get_settings_dir()
 	settings_path := filepath.Join(settings_dir, "settings.json")
-
-	data, err := os.ReadFile(settings_path)
-	if err == nil {
-		var saved_settings map[string]string
-		if err := json.Unmarshal(data, &saved_settings); err == nil {
-			// Override defaults with saved values (only for defined keys)
-			for k, v := range saved_settings {
-				if _, exists := DefaultSettings[k]; exists && !SensitiveFields[k] {
+	if data, err := os.ReadFile(settings_path); err == nil {
+		var saved map[string]string
+		if err := json.Unmarshal(data, &saved); err == nil {
+			for k, v := range saved {
+				if _, exists := default_settings[k]; exists && !sensitive_fields[k] && !strings.HasPrefix(k, "_header_") {
 					settings_map[k] = v
 				}
 			}
 		}
 	}
 
-	// Load sensitive fields from restricted file
 	sensitive_path := filepath.Join(settings_dir, "sensitive.json")
-	sensitive_data, err := os.ReadFile(sensitive_path)
-	if err == nil {
-		var sensitive_settings map[string]string
-		if err := json.Unmarshal(sensitive_data, &sensitive_settings); err == nil {
-			for field, value := range sensitive_settings {
-				if SensitiveFields[field] {
-					settings_map[field] = value
+	if data, err := os.ReadFile(sensitive_path); err == nil {
+		var sensitive map[string]string
+		if err := json.Unmarshal(data, &sensitive); err == nil {
+			for k, v := range sensitive {
+				if sensitive_fields[k] {
+					settings_map[k] = v
 				}
 			}
 		}
@@ -288,18 +304,15 @@ func get_settings_dir() string {
 	return filepath.Join(home, ".local", "share", "cunc")
 }
 
-func get_sorted_keys(m map[string]string) []string {
-	var keys []string
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
 func max(a, b int) int {
 	if a > b {
 		return a
 	}
 	return b
+}
+
+// must_marshal_indent is a small helper for json.MarshalIndent
+func must_marshal_indent(v interface{}) []byte {
+	data, _ := json.MarshalIndent(v, "", "  ")
+	return data
 }

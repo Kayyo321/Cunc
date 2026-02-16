@@ -3,6 +3,7 @@ package main
 import (
 	"cunc/src/drafts"
 	"cunc/src/editor"
+	"cunc/src/inbox"
 	"cunc/src/settings"
 	"fmt"
 	"os"
@@ -23,7 +24,10 @@ func usage() {
 	fmt.Println("     -d")
 	fmt.Println()
 	fmt.Println("     -settings : view and edit your settings")
-	fmt.Println("     -s")
+	fmt.Println("     -s          including your email/password for logging in!")
+	fmt.Println()
+	fmt.Println("     -inbox : view your current inbox")
+	fmt.Println("     -i")
 	fmt.Println()
 }
 
@@ -52,6 +56,28 @@ func view_settings() {
 	}
 }
 
+func view_inbox() {
+	// For now, create a placeholder slice of emails.
+	// Later, you can replace this with actual IMAP or draft inbox fetching.
+	emails := []inbox.Email{
+		{ID: "1", From: "alice@example.com", Subject: "Hello", Body: "Hi there! How are you?"},
+		{ID: "2", From: "bob@example.com", Subject: "Meeting", Body: "Don't forget our meeting tomorrow at 10am."},
+		{ID: "3", From: "carol@example.com", Subject: "Greetings", Body: "Just wanted to say hi."},
+		// ...add more sample emails or load from IMAP
+	}
+
+	// Initialize inbox model
+	inbox_model := inbox.InitialModel(emails)
+
+	// Run Bubble Tea program
+	p := tea.NewProgram(inbox_model)
+	if _, err := p.Run(); err != nil {
+		os.Exit(1)
+	} else {
+		// final_model := model_result.(inbox.Model)
+	}
+}
+
 func main() {
 	modes := map[string]func(){
 		"-help": usage,
@@ -65,6 +91,9 @@ func main() {
 
 		"-settings": view_settings,
 		"-s":        view_settings,
+
+		"-inbox": view_inbox,
+		"-i":     view_inbox,
 	}
 
 	if len(os.Args) != 2 {
