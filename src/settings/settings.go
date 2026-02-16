@@ -18,6 +18,7 @@ var default_settings = map[string]string{
 	"email":            "",
 	"password":         "",
 	"2fa app-password": "",
+	"emails per page":  "10",
 
 	"_header_Preferences":         "",
 	"should delete draft on send": "n",
@@ -29,6 +30,7 @@ var field_order = []string{
 	"email",
 	"password",
 	"2fa app-password",
+	"emails per page",
 
 	"_header_Preferences",
 	"should delete draft on send",

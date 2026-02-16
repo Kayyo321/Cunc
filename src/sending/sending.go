@@ -5,6 +5,7 @@ import (
 	"net/smtp"
 	"strings"
 
+	"cunc/src/contacts"
 	"cunc/src/settings"
 )
 
@@ -67,6 +68,11 @@ func Send(to, subject, body string) error {
 	if err != nil {
 		return fmt.Errorf("failed to send email: %v", err)
 	}
+
+	// Save the recipient to contact history
+	history := contacts.Load()
+	history.AddContact(to)
+	history.Save() // Ignore error, this is not critical
 
 	return nil
 }

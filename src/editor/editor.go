@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"cunc/src/contacts"
 	"cunc/src/sending"
 	"encoding/json"
 	"fmt"
@@ -24,6 +25,12 @@ type Model struct {
 	draft_id        string
 	last_save       time.Time
 	confirming_send bool
+
+	// Autocomplete fields
+	contactHistory  *contacts.ContactHistory
+	suggestions     []string
+	selectedSugg    int
+	showingSugg     bool
 }
 
 func ComposeFrom(m Model) {
@@ -57,6 +64,10 @@ func InitialModel() Model {
 		height:          24,
 		draft_id:        fmt.Sprintf("%d", time.Now().UnixNano()),
 		confirming_send: false,
+		contactHistory:  contacts.Load(),
+		suggestions:     []string{},
+		selectedSugg:    0,
+		showingSugg:     false,
 	}
 }
 
@@ -83,6 +94,10 @@ func LoadDraft(draft_id, to, subject, body string) Model {
 		height:          24,
 		draft_id:        draft_id,
 		confirming_send: false,
+		contactHistory:  contacts.Load(),
+		suggestions:     []string{},
+		selectedSugg:    0,
+		showingSugg:     false,
 	}
 }
 
@@ -168,9 +183,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "tab":
-			if !m.confirming_send {
+			if m.showingSugg && m.focus == 0 && len(m.suggestions) > 0 {
+				// Select current suggestion
+				m.to.SetValue(m.suggestions[m.selectedSugg])
+				m.showingSugg = false
+				m.suggestions = []string{}
+				handled = true
+			} else if !m.confirming_send {
 				m.focus = (m.focus + 1) % 3
 				m.Refocus()
+				m.showingSugg = false
 				handled = true
 			}
 
@@ -178,6 +200,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.confirming_send {
 				m.focus = (m.focus - 1 + 3) % 3
 				m.Refocus()
+				m.showingSugg = false
+				handled = true
+			}
+
+		case "esc":
+			if m.showingSugg {
+				m.showingSugg = false
+				m.suggestions = []string{}
+				handled = true
+			}
+
+		case "down":
+			if m.showingSugg && m.focus == 0 {
+				m.selectedSugg = (m.selectedSugg + 1) % len(m.suggestions)
+				handled = true
+			}
+
+		case "up":
+			if m.showingSugg && m.focus == 0 {
+				m.selectedSugg = (m.selectedSugg - 1 + len(m.suggestions)) % len(m.suggestions)
+				handled = true
+			}
+
+		case "enter":
+			if m.showingSugg && m.focus == 0 && len(m.suggestions) > 0 {
+				// Select current suggestion
+				m.to.SetValue(m.suggestions[m.selectedSugg])
+				m.showingSugg = false
+				m.suggestions = []string{}
 				handled = true
 			}
 
@@ -216,9 +267,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 
+	// Store old value of "to" field to detect changes
+	oldToValue := m.to.Value()
+
 	switch m.focus {
 	case 0:
 		m.to, cmd = m.to.Update(msg)
+		// Update autocomplete suggestions if "to" field changed
+		if m.to.Value() != oldToValue {
+			m.updateSuggestions()
+		}
 	case 1:
 		m.subject, cmd = m.subject.Update(msg)
 	case 2:
@@ -226,6 +284,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, cmd
+}
+
+func (m *Model) updateSuggestions() {
+	toValue := m.to.Value()
+	if toValue == "" {
+		m.showingSugg = false
+		m.suggestions = []string{}
+		return
+	}
+
+	if m.contactHistory == nil {
+		m.showingSugg = false
+		m.suggestions = []string{}
+		return
+	}
+
+	suggestions := m.contactHistory.GetSuggestions(toValue)
+	if len(suggestions) > 0 {
+		m.suggestions = suggestions
+		if len(m.suggestions) > 5 {
+			m.suggestions = m.suggestions[:5] // Limit to 5 suggestions
+		}
+		m.showingSugg = true
+		m.selectedSugg = 0
+	} else {
+		m.showingSugg = false
+		m.suggestions = []string{}
+	}
 }
 
 func (m Model) View() string {
@@ -240,6 +326,29 @@ func (m Model) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirm_box)
 	}
 
+	// Build the content with autocomplete suggestions if showing
+	toField := "To:\n" + m.to.View()
+	
+	if m.showingSugg && len(m.suggestions) > 0 {
+		suggStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8")).
+			Padding(0, 2)
+
+		selectedStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("7")).
+			Background(lipgloss.Color("4")).
+			Padding(0, 2)
+
+		toField += "\n"
+		for i, sugg := range m.suggestions {
+			if i == m.selectedSugg {
+				toField += selectedStyle.Render("→ " + sugg) + "\n"
+			} else {
+				toField += suggStyle.Render("  " + sugg) + "\n"
+			}
+		}
+	}
+
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		Padding(1).
@@ -247,7 +356,7 @@ func (m Model) View() string {
 		Height(m.height - 6)
 
 	content := box.Render(
-		"To:\n" + m.to.View() +
+		toField +
 			"\n\nSubject:\n" + m.subject.View() +
 			"\n\nBody:\n" + m.body.View(),
 	)

@@ -7,6 +7,7 @@ import (
 	"cunc/src/settings"
 	"fmt"
 	"os"
+	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -57,24 +58,40 @@ func view_settings() {
 }
 
 func view_inbox() {
-	// For now, create a placeholder slice of emails.
-	// Later, you can replace this with actual IMAP or draft inbox fetching.
-	emails := []inbox.Email{
-		{ID: "1", From: "alice@example.com", Subject: "Hello", Body: "Hi there! How are you?"},
-		{ID: "2", From: "bob@example.com", Subject: "Meeting", Body: "Don't forget our meeting tomorrow at 10am."},
-		{ID: "3", From: "carol@example.com", Subject: "Greetings", Body: "Just wanted to say hi."},
-		// ...add more sample emails or load from IMAP
+	// Try to read credentials from settings and fetch real emails via IMAP
+	sm := settings.InitialModel()
+	user := sm.GetSetting("email")
+	pass := sm.GetSetting("2fa app-password")
+	if pass == "" {
+		pass = sm.GetSetting("password")
 	}
 
-	// Initialize inbox model
-	inbox_model := inbox.InitialModel(emails)
+	// Determine per-page from settings
+	perPage := 10
+	if s := sm.GetSetting("emails per page"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil && v > 0 {
+			perPage = v
+		}
+	}
+
+	var inbox_model inbox.Model
+	// If credentials present, start with loading=true and let the inbox model fetch
+	if user != "" && pass != "" {
+		inbox_model = inbox.InitialModel([]inbox.Email{}, perPage, true, user, pass, 50)
+	} else {
+		// No credentials: provide sample emails and no loading
+		emails := []inbox.Email{
+			{ID: "1", From: "alice@example.com", Subject: "Hello", Body: "Hi there! How are you?"},
+			{ID: "2", From: "bob@example.com", Subject: "Meeting", Body: "Don't forget our meeting tomorrow at 10am."},
+			{ID: "3", From: "carol@example.com", Subject: "Greetings", Body: "Just wanted to say hi."},
+		}
+		inbox_model = inbox.InitialModel(emails, perPage, false, "", "", 0)
+	}
 
 	// Run Bubble Tea program
 	p := tea.NewProgram(inbox_model)
 	if _, err := p.Run(); err != nil {
 		os.Exit(1)
-	} else {
-		// final_model := model_result.(inbox.Model)
 	}
 }
 
