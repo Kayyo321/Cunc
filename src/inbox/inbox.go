@@ -26,6 +26,7 @@ type Email struct {
 	From        string
 	Subject     string
 	Body        string
+	HTMLBody    string // HTML version of email body
 	Attachments []Attachment
 }
 
@@ -70,6 +71,9 @@ type Model struct {
 	search_query     string
 	search_results   []Email
 	search_input_pos int
+
+	// email view scrolling
+	email_scroll_offset int // vertical scroll offset when viewing an email
 }
 
 func InitialModel(emails []Email, emails_per_page int, loading bool, fetch_user, fetch_pass string, fetch_max int) Model {
@@ -104,6 +108,7 @@ func InitialModel(emails []Email, emails_per_page int, loading bool, fetch_user,
 		search_query:        "",
 		search_results:      []Email{},
 		search_input_pos:    0,
+		email_scroll_offset: 0,
 	}
 }
 
@@ -213,6 +218,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.selected_attachment > 0 {
 					m.selected_attachment--
 				}
+			} else if m.viewing_email {
+				// Scroll up in email content
+				if m.email_scroll_offset > 0 {
+					m.email_scroll_offset--
+				}
 			} else if m.selected > 0 {
 				m.selected--
 			} else if m.page > 0 {
@@ -225,6 +235,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				email := m.get_selected_email()
 				if email != nil && m.selected_attachment < len(email.Attachments)-1 {
 					m.selected_attachment++
+				}
+			} else if m.viewing_email {
+				// Scroll down in email content
+				email := m.get_selected_email()
+				if email != nil {
+					wrappedLines := m.wrap_body_lines(email.Body)
+					availableHeight := m.height - 15
+					if availableHeight < 5 {
+						availableHeight = 5
+					}
+					maxScroll := len(wrappedLines) - availableHeight
+					if maxScroll < 0 {
+						maxScroll = 0
+					}
+					if m.email_scroll_offset < maxScroll {
+						m.email_scroll_offset++
+					}
 				}
 			} else {
 				current_emails := m.get_current_emails()
@@ -271,8 +298,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if !m.viewing_email && len(m.get_current_emails()) > 0 {
 				m.viewing_email = true
+				m.email_scroll_offset = 0 // Reset scroll when opening email
 			} else if m.viewing_email && !m.viewing_attachments {
 				m.viewing_email = false
+				m.email_scroll_offset = 0 // Reset scroll when closing email
 			} else if m.viewing_attachments {
 				m.viewing_attachments = false
 			}
@@ -309,6 +338,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewing_attachments = false
 			} else if m.viewing_email {
 				m.viewing_email = false
+				m.email_scroll_offset = 0 // Reset scroll when exiting email
 			} else if len(m.search_results) > 0 {
 				// Clear search results and return to full inbox
 				m.search_results = []Email{}
@@ -418,9 +448,9 @@ func (m Model) get_footer_text() string {
 	} else if m.viewing_email {
 		email := m.get_selected_email()
 		if email != nil && len(email.Attachments) > 0 {
-			return "enter back • a view attachments • esc back • ctrl+q quit"
+			return "↑/k ↓/j scroll • enter/esc back • a view attachments • ctrl+q quit"
 		}
-		return "enter back • esc back • ctrl+q quit"
+		return "↑/k ↓/j scroll • enter/esc back • ctrl+q quit"
 	}
 	return "↑/k up • ↓/j down • h/l prev/next page • enter view • ctrl+f search • ctrl+r refresh • ctrl+q quit"
 }
@@ -486,6 +516,89 @@ func (m Model) get_selected_email() *Email {
 		return &current_emails[idx]
 	}
 	return nil
+}
+
+// wrap_body_lines wraps email body lines to fit within the display width
+func (m Model) wrap_body_lines(body string) []string {
+	contentWidth := m.width - 14 // width - 10 for box, - 4 for border and padding
+	if contentWidth < 20 {
+		contentWidth = 20
+	}
+
+	bodyLines := strings.Split(body, "\n")
+	wrappedLines := []string{}
+
+	for _, line := range bodyLines {
+		if len(line) <= contentWidth {
+			wrappedLines = append(wrappedLines, line)
+			continue
+		}
+
+		// Word-based wrapping to preserve URLs and words
+		words := strings.Fields(line) // Split on whitespace
+		if len(words) == 0 {
+			wrappedLines = append(wrappedLines, line)
+			continue
+		}
+
+		currentLine := ""
+		for _, word := range words {
+			// Check if this word looks like a URL (with or without wrapping characters)
+			isURL := strings.HasPrefix(word, "http://") ||
+				strings.HasPrefix(word, "https://") ||
+				strings.HasPrefix(word, "<http://") ||
+				strings.HasPrefix(word, "<https://") ||
+				strings.HasPrefix(word, "[http://") ||
+				strings.HasPrefix(word, "[https://") ||
+				strings.HasPrefix(word, "(http://") ||
+				strings.HasPrefix(word, "(https://") ||
+				strings.Contains(word, "://")
+
+			// If word is too long and is a URL, put it on its own line
+			if isURL && len(word) > contentWidth {
+				if currentLine != "" {
+					wrappedLines = append(wrappedLines, currentLine)
+					currentLine = ""
+				}
+				wrappedLines = append(wrappedLines, word)
+				continue
+			}
+
+			// Try to add word to current line
+			testLine := currentLine
+			if testLine != "" {
+				testLine += " " + word
+			} else {
+				testLine = word
+			}
+
+			if len(testLine) <= contentWidth {
+				currentLine = testLine
+			} else {
+				// Current line is full, start a new line
+				if currentLine != "" {
+					wrappedLines = append(wrappedLines, currentLine)
+				}
+				// If the word itself is too long and not a URL, break it
+				if len(word) > contentWidth && !isURL {
+					for len(word) > contentWidth {
+						wrappedLines = append(wrappedLines, word[:contentWidth])
+						word = word[contentWidth:]
+					}
+					currentLine = word
+				} else {
+					currentLine = word
+				}
+			}
+		}
+
+		// Add any remaining text
+		if currentLine != "" {
+			wrappedLines = append(wrappedLines, currentLine)
+		}
+	}
+
+	return wrappedLines
 }
 
 // get_current_emails returns search_results if in search mode, otherwise full email list
@@ -606,8 +719,84 @@ func max(a, b int) int {
 
 // render_email_view renders a single email with attachment indicators
 func (m Model) render_email_view(email *Email) string {
-	view := fmt.Sprintf("From: %s\nSubject: %s\n\n%s", email.From, email.Subject, email.Body)
+	// Calculate the content width (accounting for border and padding)
+	contentWidth := m.width - 14 // width - 10 for box, - 4 for border and padding
+	if contentWidth < 20 {
+		contentWidth = 20
+	}
 
+	// Styles for different sections
+	headerStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("4")).
+		Padding(0, 1).
+		MaxWidth(m.width - 10)
+
+	subjectStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("6")).
+		Padding(0, 1).
+		MaxWidth(m.width - 10)
+
+	bodyStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("2")).
+		Padding(0, 1).
+		MaxWidth(m.width - 10)
+
+	// From header - truncate if needed
+	fromText := "From: " + email.From
+	if len(fromText) > contentWidth {
+		fromText = fromText[:contentWidth-3] + "..."
+	}
+	fromBox := headerStyle.Render(fromText)
+
+	// Subject header - truncate if needed
+	subjectText := "Subject: " + email.Subject
+	if len(subjectText) > contentWidth {
+		subjectText = subjectText[:contentWidth-3] + "..."
+	}
+	subjectBox := subjectStyle.Render(subjectText)
+
+	// Body - handle scrolling with wrapped lines
+	wrappedLines := m.wrap_body_lines(email.Body)
+
+	// Calculate available height for body (total height - title - from - subject - footer - borders)
+	availableHeight := m.height - 15 // Adjust based on UI layout
+	if availableHeight < 5 {
+		availableHeight = 5
+	}
+
+	// Apply scroll offset
+	startLine := m.email_scroll_offset
+	endLine := startLine + availableHeight
+
+	// Clamp to valid range
+	if startLine < 0 {
+		startLine = 0
+	}
+	if startLine > len(wrappedLines) {
+		startLine = len(wrappedLines)
+	}
+	if endLine > len(wrappedLines) {
+		endLine = len(wrappedLines)
+	}
+	if startLine > endLine {
+		startLine = endLine
+	}
+
+	visibleBody := strings.Join(wrappedLines[startLine:endLine], "\n")
+
+	// Add scroll indicators on a separate line
+	scrollInfo := ""
+	if len(wrappedLines) > availableHeight {
+		scrollInfo = fmt.Sprintf("\n\n[%d-%d of %d lines]", startLine+1, endLine, len(wrappedLines))
+	}
+
+	bodyBox := bodyStyle.Render(visibleBody + scrollInfo)
+
+	// Attachment indicator
+	attachmentInfo := ""
 	if len(email.Attachments) > 0 {
 		// Check unicode support
 		sett := settings.InitialModel()
@@ -621,13 +810,13 @@ func (m Model) render_email_view(email *Email) string {
 			Foreground(lipgloss.Color("6")).
 			Bold(true)
 
-		view += "\n\n" + attachStyle.Render(fmt.Sprintf("%s %d attachment(s)", attachment_icon, len(email.Attachments)))
-		view += lipgloss.NewStyle().
+		attachmentInfo = "\n\n" + attachStyle.Render(fmt.Sprintf("%s %d attachment(s)", attachment_icon, len(email.Attachments)))
+		attachmentInfo += lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8")).
 			Render("\n(press 'a' to view/download)")
 	}
 
-	return view
+	return fromBox + "\n\n" + subjectBox + "\n\n" + bodyBox + attachmentInfo
 }
 
 // render_attachment_list renders the list of attachments for download

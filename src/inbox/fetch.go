@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -80,6 +81,7 @@ func FetchWithOffset(username, password string, offset, max int) ([]Email, error
 
 		// Default body
 		body_str := ""
+		html_body := ""
 		var attachments []Attachment
 
 		if r := msg.GetBody(section); r != nil {
@@ -100,7 +102,9 @@ func FetchWithOffset(username, password string, offset, max int) ([]Email, error
 						ctype, _, _ := h.ContentType()
 						if strings.HasPrefix(ctype, "text/plain") && body_str == "" {
 							body_str = string(b)
-						} else if body_str == "" {
+						} else if strings.HasPrefix(ctype, "text/html") && html_body == "" {
+							html_body = string(b)
+						} else if body_str == "" && html_body == "" {
 							body_str = string(b)
 						}
 					case *mail.AttachmentHeader:
@@ -120,6 +124,11 @@ func FetchWithOffset(username, password string, offset, max int) ([]Email, error
 			}
 		}
 
+		// If we don't have text/plain but have HTML, convert HTML to text
+		if body_str == "" && html_body != "" {
+			body_str = htmlToText(html_body)
+		}
+
 		id := fmt.Sprintf("%d", msg.SeqNum)
 		from_addr := ""
 		if len(env.From) > 0 {
@@ -137,6 +146,7 @@ func FetchWithOffset(username, password string, offset, max int) ([]Email, error
 			From:        from_addr,
 			Subject:     subj,
 			Body:        body_str,
+			HTMLBody:    html_body,
 			Attachments: attachments,
 		})
 	}
@@ -178,4 +188,44 @@ func FetchMoreEmailsCmd(username, password string, offset, max int) tea.Cmd {
 		emails, err := FetchWithOffset(username, password, offset, max)
 		return EmailsFetchedWithOffsetMsg{Emails: emails, Offset: offset, Err: err}
 	}
+}
+
+// htmlToText converts HTML to plain text by stripping tags and converting common elements
+func htmlToText(html string) string {
+	// Remove script and style tags and their content
+	reScript := regexp.MustCompile(`(?i)<script[^>]*>.*?</script>`)
+	html = reScript.ReplaceAllString(html, "")
+	reStyle := regexp.MustCompile(`(?i)<style[^>]*>.*?</style>`)
+	html = reStyle.ReplaceAllString(html, "")
+
+	// Convert line breaks
+	reBr := regexp.MustCompile(`(?i)<br\s*/?>`)
+	html = reBr.ReplaceAllString(html, "\n")
+	reP := regexp.MustCompile(`(?i)</p>`)
+	html = reP.ReplaceAllString(html, "\n\n")
+	reDiv := regexp.MustCompile(`(?i)</div>`)
+	html = reDiv.ReplaceAllString(html, "\n")
+
+	// Convert links to show URL
+	reLink := regexp.MustCompile(`(?i)<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>`)
+	html = reLink.ReplaceAllString(html, "$2 [$1]")
+
+	// Remove all other HTML tags
+	reTag := regexp.MustCompile(`<[^>]+>`)
+	text := reTag.ReplaceAllString(html, "")
+
+	// Decode common HTML entities
+	text = strings.ReplaceAll(text, "&nbsp;", " ")
+	text = strings.ReplaceAll(text, "&lt;", "<")
+	text = strings.ReplaceAll(text, "&gt;", ">")
+	text = strings.ReplaceAll(text, "&amp;", "&")
+	text = strings.ReplaceAll(text, "&quot;", "\"")
+	text = strings.ReplaceAll(text, "&#39;", "'")
+	text = strings.ReplaceAll(text, "&apos;", "'")
+
+	// Clean up excessive whitespace
+	reWhitespace := regexp.MustCompile(`\n\s*\n\s*\n`)
+	text = reWhitespace.ReplaceAllString(text, "\n\n")
+
+	return strings.TrimSpace(text)
 }
