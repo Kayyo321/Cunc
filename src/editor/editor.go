@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"cunc/src/sending"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,14 +15,15 @@ import (
 )
 
 type Model struct {
-	to        textinput.Model
-	subject   textinput.Model
-	body      textarea.Model
-	focus     int
-	width     int
-	height    int
-	draft_id  string
-	last_save time.Time
+	to              textinput.Model
+	subject         textinput.Model
+	body            textarea.Model
+	focus           int
+	width           int
+	height          int
+	draft_id        string
+	last_save       time.Time
+	confirming_send bool
 }
 
 func ComposeFrom(m Model) {
@@ -47,13 +49,14 @@ func InitialModel() Model {
 	body.Placeholder = "Write your message..."
 
 	return Model{
-		to:       to,
-		subject:  subject,
-		body:     body,
-		focus:    0,
-		width:    80,
-		height:   24,
-		draft_id: fmt.Sprintf("%d", time.Now().UnixNano()),
+		to:              to,
+		subject:         subject,
+		body:            body,
+		focus:           0,
+		width:           80,
+		height:          24,
+		draft_id:        fmt.Sprintf("%d", time.Now().UnixNano()),
+		confirming_send: false,
 	}
 }
 
@@ -72,13 +75,14 @@ func LoadDraft(draft_id, to, subject, body string) Model {
 	body_input.Placeholder = "Write your message..."
 
 	return Model{
-		to:       to_input,
-		subject:  subject_input,
-		body:     body_input,
-		focus:    0,
-		width:    80,
-		height:   24,
-		draft_id: draft_id,
+		to:              to_input,
+		subject:         subject_input,
+		body:            body_input,
+		focus:           0,
+		width:           80,
+		height:          24,
+		draft_id:        draft_id,
+		confirming_send: false,
 	}
 }
 
@@ -138,7 +142,10 @@ func get_draft_dir() string {
 }
 
 func (m *Model) SendEmail() {
-
+	err := sending.Send(m.GetTo(), m.GetSubject(), m.GetBody())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error sending email: %v\n", err)
+	}
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -153,6 +160,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.body.SetHeight(msg.Height - 12)
 
 	case tea.KeyMsg:
+		handled := false
 		switch msg.String() {
 
 		case "ctrl+q":
@@ -160,22 +168,49 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "tab":
-			m.focus = (m.focus + 1) % 3
-			m.Refocus()
+			if !m.confirming_send {
+				m.focus = (m.focus + 1) % 3
+				m.Refocus()
+				handled = true
+			}
 
 		case "shift+tab":
-			m.focus = (m.focus - 1 + 3) % 3
-			m.Refocus()
+			if !m.confirming_send {
+				m.focus = (m.focus - 1 + 3) % 3
+				m.Refocus()
+				handled = true
+			}
 
 		case "ctrl+s":
-			m.SaveAsDraft()
-			fmt.Print("\033[2J")
-			return m, tea.Quit
+			if !m.confirming_send {
+				m.SaveAsDraft()
+				fmt.Print("\033[2J")
+				return m, tea.Quit
+			}
 
-		case "ctrl+enter":
-			m.SendEmail()
-			fmt.Print("\033[2J")
-			return m, tea.Quit
+		case "ctrl+y":
+			if !m.confirming_send {
+				m.confirming_send = true
+			} else {
+				handled = true
+			}
+
+		case "y":
+			if m.confirming_send {
+				m.SendEmail()
+				fmt.Print("\033[2J")
+				return m, tea.Quit
+			}
+
+		case "n":
+			if m.confirming_send {
+				m.confirming_send = false
+				handled = true
+			}
+		}
+
+		if handled {
+			return m, nil
 		}
 	}
 
@@ -194,6 +229,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+	if m.confirming_send {
+		confirm_box := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			Padding(1).
+			Width(40).
+			BorderForeground(lipgloss.Color("3")).
+			Render("Send email to " + m.to.Value() + "?\n\n(y/n)")
+
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirm_box)
+	}
+
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		Padding(1).
@@ -210,7 +256,7 @@ func (m Model) View() string {
 		Foreground(lipgloss.Color("8")).
 		Padding(0, 1).
 		Width(m.width - 2).
-		Render("ctrl+q quit • tab/shift+tab navigate • ctrl+s save as draft • ctrl+enter send email")
+		Render("ctrl+q quit • tab/shift+tab navigate • ctrl+s save as draft • ctrl+y send email")
 
 	return lipgloss.JoinVertical(lipgloss.Left, content, footer)
 }

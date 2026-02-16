@@ -3,6 +3,7 @@ package main
 import (
 	"cunc/src/drafts"
 	"cunc/src/editor"
+	"cunc/src/settings"
 	"fmt"
 	"os"
 
@@ -21,6 +22,9 @@ func usage() {
 	fmt.Println("     -drafts : view and edit your saved drafts")
 	fmt.Println("     -d")
 	fmt.Println()
+	fmt.Println("     -settings : view and edit your settings")
+	fmt.Println("     -s")
+	fmt.Println()
 }
 
 func view_drafts() {
@@ -29,7 +33,8 @@ func view_drafts() {
 		os.Exit(1)
 	} else {
 		drafts_model := model_result.(drafts.Model)
-		if draft := drafts_model.GetSelectedDraft(); draft != nil {
+		if drafts_model.Action == "select" && drafts_model.GetSelectedDraft() != nil {
+			draft := drafts_model.GetSelectedDraft()
 			// Load the selected draft in the editor
 			editor_model := editor.LoadDraft(draft.ID, draft.To, draft.Subject, draft.Body)
 			editor_program := tea.NewProgram(editor_model)
@@ -37,6 +42,13 @@ func view_drafts() {
 				os.Exit(1)
 			}
 		}
+	}
+}
+
+func view_settings() {
+	p := tea.NewProgram(settings.InitialModel())
+	if _, err := p.Run(); err != nil {
+		os.Exit(1)
 	}
 }
 
@@ -50,6 +62,9 @@ func main() {
 
 		"-drafts": view_drafts,
 		"-d":      view_drafts,
+
+		"-settings": view_settings,
+		"-s":        view_settings,
 	}
 
 	if len(os.Args) != 2 {

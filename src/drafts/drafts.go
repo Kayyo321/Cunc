@@ -19,11 +19,13 @@ type Draft struct {
 }
 
 type Model struct {
-	drafts   []Draft
-	selected int
-	width    int
-	height   int
-	err      error
+	drafts            []Draft
+	selected          int
+	width             int
+	height            int
+	err               error
+	Action            string // "select" or "quit"
+	confirming_delete bool
 }
 
 func InitialModel() Model {
@@ -51,6 +53,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 
 		case "ctrl+q":
+			fmt.Print("\033[2J")
+			m.Action = "quit"
 			return m, tea.Quit
 
 		case "up", "k":
@@ -65,8 +69,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			if len(m.drafts) > 0 {
+				m.Action = "select"
 				return m, tea.Quit
 			}
+
+		case "d":
+			if len(m.drafts) > 0 {
+				m.confirming_delete = true
+			}
+
+		case "y":
+			if m.confirming_delete {
+				if draft := m.GetSelectedDraft(); draft != nil {
+					delete_draft_file(draft.ID)
+					m.drafts = load_drafts()
+					if m.selected >= len(m.drafts) && m.selected > 0 {
+						m.selected--
+					}
+				}
+				m.confirming_delete = false
+			}
+
+		case "n":
+			m.confirming_delete = false
 		}
 	}
 
@@ -74,12 +99,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+	if m.confirming_delete {
+		if draft := m.GetSelectedDraft(); draft != nil {
+			confirm_text := fmt.Sprintf("Delete draft '%s'? (y/n)", draft.Subject)
+			return lipgloss.NewStyle().
+				Padding(2).
+				Render(confirm_text)
+		}
+	}
+
 	if len(m.drafts) == 0 {
 		box := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			Padding(1).
 			Width(m.width - 2).
-			Height(m.height - 6)
+			Height(max(m.height-6, 3))
 
 		content := box.Render("No drafts found")
 
@@ -87,7 +121,7 @@ func (m Model) View() string {
 			Foreground(lipgloss.Color("8")).
 			Padding(0, 1).
 			Width(m.width - 2).
-			Render("q quit")
+			Render("ctrl+q quit")
 
 		return lipgloss.JoinVertical(lipgloss.Left, content, footer)
 	}
@@ -115,7 +149,7 @@ func (m Model) View() string {
 		Border(lipgloss.RoundedBorder()).
 		Padding(1).
 		Width(m.width - 2).
-		Height(m.height - 6)
+		Height(max(m.height-6, 3))
 
 	content := box.Render(draft_lines)
 
@@ -123,7 +157,7 @@ func (m Model) View() string {
 		Foreground(lipgloss.Color("8")).
 		Padding(0, 1).
 		Width(m.width - 2).
-		Render("↑/k up • ↓/j down • enter select • ctrl+q quit")
+		Render("↑/k up • ↓/j down • enter select • d delete • ctrl+q quit")
 
 	return lipgloss.JoinVertical(lipgloss.Left, content, footer)
 }
@@ -183,4 +217,17 @@ func get_draft_dir() string {
 		return ".cunc_drafts"
 	}
 	return filepath.Join(home, ".local", "share", "cunc", "drafts")
+}
+
+func delete_draft_file(draft_id string) error {
+	draft_dir := get_draft_dir()
+	draft_path := filepath.Join(draft_dir, draft_id+".json")
+	return os.Remove(draft_path)
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
