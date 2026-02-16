@@ -106,7 +106,7 @@ cunc
 cunc -c
 
 # Check your inbox
-cunc --inbox
+cunc -inbox
 
 # Manage drafts
 cunc -d
