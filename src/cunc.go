@@ -49,6 +49,7 @@ func view_drafts() {
 			}
 		}
 	}
+	fmt.Print("\033[2J\033[H") // Clear screen and move cursor to home
 }
 
 func view_settings() {
@@ -56,6 +57,7 @@ func view_settings() {
 	if _, err := p.Run(); err != nil {
 		os.Exit(1)
 	}
+	fmt.Print("\033[2J\033[H") // Clear screen and move cursor to home
 }
 
 func view_inbox() {
@@ -94,6 +96,7 @@ func view_inbox() {
 	if _, err := p.Run(); err != nil {
 		os.Exit(1)
 	}
+	fmt.Print("\033[2J\033[H") // Clear screen and move cursor to home
 }
 
 func main() {
@@ -151,7 +154,7 @@ func main() {
 		case "settings":
 			view_settings()
 		case "quit":
-			fmt.Print("\033[2J") // Clear screen
+			fmt.Print("\033[2J\033[H") // Clear screen and move cursor to home
 			return
 		default:
 			return

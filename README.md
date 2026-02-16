@@ -251,7 +251,7 @@ Navigate with **↑/↓**, edit values directly, then press **Ctrl+S** to save.
 For Gmail users:
 1. Enable IMAP: Gmail Settings → Forwarding and POP/IMAP → Enable IMAP
 2. If using 2FA (recommended):
-   - Generate an App Password: [Google Account](https://myaccount.google.com/) → Security → 2-Step Verification → App passwords
+   - Generate an App Password: [Google Account](https://myaccount.google.com/) → Search → App Passwords → Add A New App Password (name it whatever you want)
    - Use the app password in the `2fa app-password` field in Cunc settings
 
 ### Other Email Providers

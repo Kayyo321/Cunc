@@ -17,6 +17,12 @@ import (
 // username should be the user's full gmail address and password should be their
 // account password or an app password when 2FA is enabled.
 func FetchLatest(username, password string, max int) ([]Email, error) {
+	return FetchWithOffset(username, password, 0, max)
+}
+
+// FetchWithOffset connects to Gmail IMAP and returns emails starting from offset.
+// offset = 0 gets the newest emails, offset > 0 skips that many of the newest emails.
+func FetchWithOffset(username, password string, offset, max int) ([]Email, error) {
 	c, err := imapclient.DialTLS("imap.gmail.com:993", &tls.Config{ServerName: "imap.gmail.com"})
 	if err != nil {
 		return nil, fmt.Errorf("dial imap: %w", err)
@@ -36,14 +42,24 @@ func FetchLatest(username, password string, max int) ([]Email, error) {
 		return []Email{}, nil
 	}
 
-	// Compute sequence range for the last `max` messages
+	// Compute sequence range starting from offset into the newest emails
+	// mbox.Messages is the highest (newest) message number
+	// offset = 0 starts at the newest, offset = 1 skips the newest, etc.
 	var from uint32 = 1
-	if mbox.Messages > uint32(max) {
-		from = mbox.Messages - uint32(max) + 1
+	var to = mbox.Messages - uint32(offset)
+
+	if to <= 0 {
+		// offset is beyond the available emails
+		return []Email{}, nil
+	}
+
+	// calc the from position
+	if to-uint32(max)+1 > 1 {
+		from = to - uint32(max) + 1
 	}
 
 	seqset := new(imap.SeqSet)
-	seqset.AddRange(from, mbox.Messages)
+	seqset.AddRange(from, to)
 
 	section := &imap.BodySectionName{}
 	items := []imap.FetchItem{imap.FetchEnvelope, section.FetchItem()}
@@ -141,10 +157,25 @@ type EmailsFetchedMsg struct {
 	Err    error
 }
 
+// EmailsFetchedWithOffsetMsg is sent when fetching more emails with an offset
+type EmailsFetchedWithOffsetMsg struct {
+	Emails []Email
+	Offset int
+	Err    error
+}
+
 // FetchEmailsCmd returns a tea.Cmd that fetches recent emails and returns an EmailsFetchedMsg.
 func FetchEmailsCmd(username, password string, max int) tea.Cmd {
 	return func() tea.Msg {
 		emails, err := FetchLatest(username, password, max)
 		return EmailsFetchedMsg{Emails: emails, Err: err}
+	}
+}
+
+// FetchMoreEmailsCmd returns a tea.Cmd that fetches more emails from a given offset.
+func FetchMoreEmailsCmd(username, password string, offset, max int) tea.Cmd {
+	return func() tea.Msg {
+		emails, err := FetchWithOffset(username, password, offset, max)
+		return EmailsFetchedWithOffsetMsg{Emails: emails, Offset: offset, Err: err}
 	}
 }

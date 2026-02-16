@@ -47,6 +47,11 @@ type Model struct {
 	fetch_pass string
 	fetch_max  int
 
+	// pagination and lazy loading
+	total_available int  // total emails available on server (approx)
+	emails_offset   int  // offset for next batch fetch
+	fetching_more   bool // true when loading the next batch
+
 	// contact history
 	contact_history *contacts.ContactHistory
 
@@ -59,6 +64,12 @@ type Model struct {
 
 	// spinner animation
 	spinner_frame int
+
+	// search mode
+	search_mode      bool
+	search_query     string
+	search_results   []Email
+	search_input_pos int
 }
 
 func InitialModel(emails []Email, emails_per_page int, loading bool, fetch_user, fetch_pass string, fetch_max int) Model {
@@ -81,11 +92,18 @@ func InitialModel(emails []Email, emails_per_page int, loading bool, fetch_user,
 		fetch_user:          fetch_user,
 		fetch_pass:          fetch_pass,
 		fetch_max:           fetch_max,
+		total_available:     fetch_max,
+		emails_offset:       0,
+		fetching_more:       false,
 		contact_history:     contacts.Load(),
 		download_message:    "",
 		showing_download:    false,
 		title_animator:      title.New(),
 		spinner_frame:       0,
+		search_mode:         false,
+		search_query:        "",
+		search_results:      []Email{},
+		search_input_pos:    0,
 	}
 }
 
@@ -121,6 +139,55 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Handle search mode input
+		if m.search_mode {
+			switch msg.String() {
+			case "esc":
+				m.search_mode = false
+				m.search_query = ""
+				m.search_results = []Email{}
+				m.page = 0
+				m.selected = 0
+
+			case "enter":
+				// Exit search input mode if we have results
+				if len(m.search_results) > 0 {
+					m.search_mode = false
+					m.page = 0
+					m.selected = 0
+				}
+
+			case "backspace":
+				if m.search_input_pos > 0 {
+					m.search_query = m.search_query[:m.search_input_pos-1] + m.search_query[m.search_input_pos:]
+					m.search_input_pos--
+					// Perform live search as we edit
+					m.search_results = m.perform_search(m.search_query)
+				}
+
+			case "left":
+				if m.search_input_pos > 0 {
+					m.search_input_pos--
+				}
+
+			case "right":
+				if m.search_input_pos < len(m.search_query) {
+					m.search_input_pos++
+				}
+
+			default:
+				if len(msg.Runes) > 0 {
+					for _, r := range msg.Runes {
+						m.search_query = m.search_query[:m.search_input_pos] + string(r) + m.search_query[m.search_input_pos:]
+						m.search_input_pos++
+					}
+					// Perform live search as we type
+					m.search_results = m.perform_search(m.search_query)
+				}
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "ctrl+q":
 			fmt.Print("\033[2J")
@@ -133,6 +200,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Loading = true
 				return m, FetchEmailsCmd(m.fetch_user, m.fetch_pass, m.fetch_max)
 			}
+
+		case "ctrl+f":
+			// Enter search mode
+			m.search_mode = true
+			m.search_query = ""
+			m.search_input_pos = 0
+			return m, nil
 
 		case "up", "k":
 			if m.viewing_attachments {
@@ -152,11 +226,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if email != nil && m.selected_attachment < len(email.Attachments)-1 {
 					m.selected_attachment++
 				}
-			} else if m.selected < m.current_page_count()-1 {
-				m.selected++
-			} else if (m.page+1)*m.emails_per_page < len(m.emails) {
-				m.page++
-				m.selected = 0
+			} else {
+				current_emails := m.get_current_emails()
+				if m.selected < len(current_emails)-1 {
+					m.selected++
+				} else if m.should_load_more() {
+					// Try to load more emails
+					m.fetching_more = true
+					return m, FetchMoreEmailsCmd(m.fetch_user, m.fetch_pass, m.emails_offset, m.fetch_max)
+				} else if (m.page+1)*m.emails_per_page < len(current_emails) {
+					m.page++
+					m.selected = 0
+				}
 			}
 
 		case "left", "h":
@@ -166,14 +247,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "right", "l":
-			maxPage := (len(m.emails) - 1) / m.emails_per_page
+			current_emails := m.get_current_emails()
+			maxPage := (len(current_emails) - 1) / m.emails_per_page
 			if m.page < maxPage {
 				m.page++
 				m.selected = 0
+			} else if m.should_load_more() {
+				// Try to load more emails
+				m.fetching_more = true
+				return m, FetchMoreEmailsCmd(m.fetch_user, m.fetch_pass, m.emails_offset, m.fetch_max)
 			}
 
 		case "enter":
-			if !m.viewing_email && len(m.emails) > 0 {
+			if !m.viewing_email && len(m.get_current_emails()) > 0 {
 				m.viewing_email = true
 			} else if m.viewing_email && !m.viewing_attachments {
 				m.viewing_email = false
@@ -213,6 +299,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewing_attachments = false
 			} else if m.viewing_email {
 				m.viewing_email = false
+			} else if len(m.search_results) > 0 {
+				// Clear search results and return to full inbox
+				m.search_results = []Email{}
+				m.search_query = ""
+				m.page = 0
+				m.selected = 0
 			}
 		}
 	}
@@ -232,6 +324,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Reset to first page
 			m.page = 0
 			m.selected = 0
+			// Update offset for next fetch
+			m.emails_offset = len(m.emails)
+		}
+
+	case EmailsFetchedWithOffsetMsg:
+		m.Loading = false
+		m.fetching_more = false
+		if v.Err == nil && len(v.Emails) > 0 {
+			// Append new emails to existing list
+			m.emails = append(m.emails, v.Emails...)
+			// Re-sort to maintain order
+			sort.Slice(m.emails, func(i, j int) bool { return m.emails[i].ID > m.emails[j].ID })
+			// Update offset for next fetch
+			m.emails_offset += len(v.Emails)
 		}
 	}
 
@@ -249,6 +355,16 @@ func (m Model) View() string {
 			Render(m.download_message + "\n\n(press any key to dismiss)")
 
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, messageBox)
+	}
+
+	// Show fetching overlay if loading more emails
+	if m.fetching_more {
+		return m.render_with_overlay(m.render_fetching_overlay())
+	}
+
+	// Show search mode
+	if m.search_mode {
+		return m.render_search_mode()
 	}
 
 	// Animated title with box
@@ -296,18 +412,20 @@ func (m Model) get_footer_text() string {
 		}
 		return "enter back • esc back • ctrl+q quit"
 	}
-	return "↑/k up • ↓/j down • h/l prev/next page • enter view • ctrl+r refresh • ctrl+q quit"
+	return "↑/k up • ↓/j down • h/l prev/next page • enter view • ctrl+f search • ctrl+r refresh • ctrl+q quit"
 }
 
 // render_email_list shows the current page of emails
 func (m Model) render_email_list() string {
+	current_emails := m.get_current_emails()
+
 	start := m.page * m.emails_per_page
 	end := start + m.emails_per_page
-	if end > len(m.emails) {
-		end = len(m.emails)
+	if end > len(current_emails) {
+		end = len(current_emails)
 	}
 
-	emails := m.emails[start:end]
+	emails := current_emails[start:end]
 	var lines string
 	for i, email := range emails {
 		line := fmt.Sprintf("  From: %s | Subject: %s", email.From, email.Subject)
@@ -343,7 +461,7 @@ func (m Model) render_email_list() string {
 	}
 
 	// Add page indicator
-	totalPages := (len(m.emails) + m.emails_per_page - 1) / m.emails_per_page
+	totalPages := (len(current_emails) + m.emails_per_page - 1) / m.emails_per_page
 	if totalPages > 1 {
 		lines += fmt.Sprintf("\n\nPage %d/%d", m.page+1, totalPages)
 	}
@@ -353,18 +471,120 @@ func (m Model) render_email_list() string {
 
 func (m Model) get_selected_email() *Email {
 	idx := m.page*m.emails_per_page + m.selected
-	if idx >= 0 && idx < len(m.emails) {
-		return &m.emails[idx]
+	current_emails := m.get_current_emails()
+	if idx >= 0 && idx < len(current_emails) {
+		return &current_emails[idx]
 	}
 	return nil
 }
 
-func (m Model) current_page_count() int {
-	remaining := len(m.emails) - m.page*m.emails_per_page
-	if remaining > m.emails_per_page {
-		return m.emails_per_page
+// get_current_emails returns search_results if in search mode, otherwise full email list
+func (m Model) get_current_emails() []Email {
+	if len(m.search_results) > 0 {
+		return m.search_results
 	}
-	return remaining
+	return m.emails
+}
+
+// should_load_more checks if we should load the next batch of emails
+func (m Model) should_load_more() bool {
+	// Only load more if we're in normal mode (not searching) and have credentials
+	if len(m.search_results) > 0 || m.fetch_user == "" || m.fetch_pass == "" {
+		return false
+	}
+	// Load more if we're at the end of our current emails
+	total_loaded := len(m.emails)
+	return total_loaded == m.emails_offset && total_loaded > 0
+}
+
+// perform_search filters emails by subject and body
+func (m Model) perform_search(query string) []Email {
+	if query == "" {
+		return []Email{}
+	}
+
+	query_lower := strings.ToLower(query)
+	var results []Email
+
+	for _, email := range m.emails {
+		if strings.Contains(strings.ToLower(email.Subject), query_lower) ||
+			strings.Contains(strings.ToLower(email.Body), query_lower) {
+			results = append(results, email)
+		}
+	}
+
+	return results
+}
+
+// render_search_mode renders the search input UI
+func (m Model) render_search_mode() string {
+	title := m.title_animator.Render()
+
+	// Build search input with cursor
+	input := m.search_query
+	cursor_pos := m.search_input_pos
+
+	// Split input into parts: before cursor and after cursor
+	before := input[:cursor_pos]
+	after := ""
+	if cursor_pos < len(input) {
+		after = input[cursor_pos:]
+	}
+
+	// Create cursor style
+	cursorStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("7")).
+		Foreground(lipgloss.Color("0"))
+
+	// Show cursor as next character or space
+	var cursorChar string
+	if cursor_pos < len(input) {
+		cursorChar = string([]rune(input)[cursor_pos])
+	} else {
+		cursorChar = " "
+	}
+
+	searchInput := before + cursorStyle.Render(cursorChar) + after
+	if cursor_pos >= len(input) {
+		searchInput = before + cursorStyle.Render(" ")
+	}
+
+	// Build result display
+	var resultText string
+	if m.search_query == "" {
+		resultText = "Start typing to search emails by subject or body..."
+	} else if len(m.search_results) == 0 {
+		resultText = fmt.Sprintf("No results found for: %q", m.search_query)
+	} else {
+		resultText = fmt.Sprintf("Found %d email(s) - press Enter to view results, Esc to cancel", len(m.search_results))
+
+		// Show first few results
+		resultText += "\n\nPreview:"
+		for i, email := range m.search_results {
+			if i >= 5 {
+				resultText += fmt.Sprintf("\n... and %d more", len(m.search_results)-5)
+				break
+			}
+			resultText += fmt.Sprintf("\n  • %s: %s", email.From, email.Subject)
+		}
+	}
+
+	content := fmt.Sprintf("Search Query:\n%s\n\n%s", searchInput, resultText)
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		Padding(1).
+		Width(m.width - 2).
+		Height(max(m.height-6, 3)).
+		Render(content)
+
+	footer := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("8")).
+		Padding(0, 1).
+		Width(m.width - 2).
+		Render("enter view results • esc cancel • ← → move cursor • backspace delete")
+
+	return lipgloss.JoinVertical(lipgloss.Left, title, box, footer)
 }
 
 func max(a, b int) int {
@@ -546,4 +766,50 @@ func (m Model) render_loading_spinner() string {
 		Padding(2, 0)
 
 	return centerStyle.Render(message)
+}
+
+// render_fetching_overlay creates an overlay box for loading more emails
+func (m Model) render_fetching_overlay() string {
+	// Check unicode support
+	sett := settings.InitialModel()
+	unicode_support := sett.GetSetting("unicode support") == "y"
+
+	var frame string
+	if unicode_support {
+		// Spinner frames using Unicode characters
+		spinners := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+		frame = spinners[m.spinner_frame%len(spinners)]
+	} else {
+		// ASCII spinner frames
+		spinners := []string{"-", "\\", "|", "/"}
+		frame = spinners[m.spinner_frame%len(spinners)]
+	}
+
+	// Style the spinner with cyan color
+	spinnerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("51")).
+		Bold(true)
+
+	message := spinnerStyle.Render(frame) + " Loading more emails..."
+
+	return message
+}
+
+// render_with_overlay renders the normal view with an overlay box
+func (m Model) render_with_overlay(overlay string) string {
+	// Create overlay box
+	overlayBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		Padding(1).
+		BorderForeground(lipgloss.Color("51")).
+		Render(overlay)
+
+	// Place overlay on top of main view
+	return lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		overlayBox,
+	)
 }
