@@ -228,15 +228,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else {
 				current_emails := m.get_current_emails()
-				if m.selected < len(current_emails)-1 {
+				// Calculate how many emails are on the current page
+				start := m.page * m.emails_per_page
+				end := start + m.emails_per_page
+				if end > len(current_emails) {
+					end = len(current_emails)
+				}
+				emails_on_page := end - start
+
+				// Check if we can move down within the current page
+				if m.selected < emails_on_page-1 {
 					m.selected++
+				} else if (m.page+1)*m.emails_per_page < len(current_emails) {
+					// Move to next page
+					m.page++
+					m.selected = 0
 				} else if m.should_load_more() {
 					// Try to load more emails
 					m.fetching_more = true
 					return m, FetchMoreEmailsCmd(m.fetch_user, m.fetch_pass, m.emails_offset, m.fetch_max)
-				} else if (m.page+1)*m.emails_per_page < len(current_emails) {
-					m.page++
-					m.selected = 0
 				}
 			}
 
