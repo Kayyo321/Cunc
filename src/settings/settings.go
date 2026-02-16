@@ -15,8 +15,9 @@ import (
 
 // DefaultSettings defines all available settings with their default values
 var DefaultSettings = map[string]string{
-	"email":    "",
-	"password": "",
+	"email":            "",
+	"password":         "",
+	"2fa-app-password": "",
 }
 
 // SensitiveFields marks which settings should not be saved to the JSON file

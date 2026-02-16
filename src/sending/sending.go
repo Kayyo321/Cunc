@@ -1,7 +1,6 @@
 package sending
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net/smtp"
 	"strings"
@@ -9,94 +8,65 @@ import (
 	"cunc/src/settings"
 )
 
+// Send sends an email to the specified recipient with subject and body.
+// Supports Gmail, Outlook/Hotmail, and generic SMTP hosts.
 func Send(to, subject, body string) error {
 	sett := settings.InitialModel()
 
-	sender_email := sett.GetSetting("email")
-	sender_password := sett.GetSetting("password")
+	senderEmail := sett.GetSetting("email")
+	senderPassword := sett.GetSetting("password")
+	appPassword := sett.GetSetting("2fa-app-password")
 
-	if sender_email == "" {
+	if senderEmail == "" {
 		return fmt.Errorf("sender email not configured in settings")
 	}
 
-	if sender_password == "" {
+	// Prefer 2FA app password if it exists
+	if appPassword != "" {
+		senderPassword = appPassword
+	}
+
+	if senderPassword == "" {
 		return fmt.Errorf("sender password not configured in settings")
 	}
 
-	// Parse the email to get the SMTP server domain
-	email_parts := strings.Split(sender_email, "@")
-	if len(email_parts) != 2 {
-		return fmt.Errorf("invalid email format")
+	// Parse the email to get the domain
+	parts := strings.Split(senderEmail, "@")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid sender email format")
 	}
+	domain := parts[1]
 
-	domain := email_parts[1]
-
-	// Determine SMTP server based on domain
-	var smtp_host string
+	// Determine SMTP host and port based on domain
+	var smtpHost, smtpPort string
 	switch domain {
 	case "gmail.com":
-		smtp_host = "smtp.gmail.com"
+		smtpHost = "smtp.gmail.com"
+		smtpPort = "587"
 	case "outlook.com", "hotmail.com":
-		smtp_host = "smtp-mail.outlook.com"
+		smtpHost = "smtp-mail.outlook.com"
+		smtpPort = "587"
 	default:
-		smtp_host = "smtp." + domain
+		smtpHost = "smtp." + domain
+		smtpPort = "587"
 	}
 
-	smtp_server := smtp_host + ":587"
-
-	// Compose the email message
-	message := "From: " + sender_email + "\r\n" +
+	// Compose the message
+	message := []byte("From: " + senderEmail + "\r\n" +
 		"To: " + to + "\r\n" +
 		"Subject: " + subject + "\r\n" +
 		"Content-Type: text/plain; charset=UTF-8\r\n" +
 		"\r\n" +
-		body
+		body)
 
-	// Connect to SMTP server
-	conn, err := smtp.Dial(smtp_server)
-	if err != nil {
-		return fmt.Errorf("failed to connect to SMTP server: %v", err)
-	}
-	defer conn.Close()
-
-	// Start TLS
-	tlsconfig := &tls.Config{
-		ServerName: smtp_host,
-	}
-	if err := conn.StartTLS(tlsconfig); err != nil {
-		return fmt.Errorf("failed to start TLS: %v", err)
-	}
-
-	// Authenticate
-	auth := smtp.PlainAuth("", sender_email, sender_password, smtp_host)
-	if err := conn.Auth(auth); err != nil {
-		return fmt.Errorf("authentication failed: %v", err)
-	}
+	// Set up authentication
+	auth := smtp.PlainAuth("", senderEmail, senderPassword, smtpHost)
 
 	// Send the email
-	if err := conn.Mail(sender_email); err != nil {
-		return fmt.Errorf("failed to set sender: %v", err)
-	}
-
-	if err := conn.Rcpt(to); err != nil {
-		return fmt.Errorf("failed to set recipient: %v", err)
-	}
-
-	wc, err := conn.Data()
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, senderEmail, []string{to}, message)
 	if err != nil {
-		return fmt.Errorf("failed to open message writer: %v", err)
+		return fmt.Errorf("failed to send email: %v", err)
 	}
 
-	_, err = wc.Write([]byte(message))
-	if err != nil {
-		return fmt.Errorf("failed to write message: %v", err)
-	}
-
-	err = wc.Close()
-	if err != nil {
-		return fmt.Errorf("failed to send message: %v", err)
-	}
-
-	conn.Quit()
 	return nil
 }
