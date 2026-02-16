@@ -517,6 +517,8 @@ func (m Model) render_email_list() string {
 		end = len(current_emails)
 	}
 
+	unicode_support := sett.GetSetting("unicode support") == "y"
+
 	emails := current_emails[start:end]
 	var lines string
 	for i, email := range emails {
@@ -558,6 +560,10 @@ func (m Model) render_email_list() string {
 		}
 
 		line := fmt.Sprintf("  From: %s | Subject: %s", fromField, subjectField)
+		star := "★ "
+		if !unicode_support {
+			star = "* "
+		}
 
 		if i == m.selected {
 			// selected email style, fancy highlight
@@ -567,12 +573,12 @@ func (m Model) render_email_list() string {
 
 			if isKnown {
 				// add an indicator for known contacts when selected
-				line = "★ " + line
+				line = star + line
 			}
 			line = style.Render(line)
 		} else if isKnown {
 			// known contact, highlight in yellow
-			line = "★ " + line
+			line = star + line
 			style := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("226")) // yellow
 			line = style.Render(line)
