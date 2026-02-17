@@ -517,6 +517,7 @@ func (m Model) render_email_list() string {
 		end = len(current_emails)
 	}
 
+	sett := settings.InitialModel()
 	unicode_support := sett.GetSetting("unicode support") == "y"
 
 	emails := current_emails[start:end]
