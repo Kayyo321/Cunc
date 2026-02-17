@@ -27,6 +27,8 @@ go.work.sum
 # env file
 .env
 
+build_release.sh
+
 # Editor/IDE
 # .idea/
 # .vscode/
