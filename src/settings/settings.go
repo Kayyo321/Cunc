@@ -92,7 +92,7 @@ func InitialModel() Model {
 			focused_set = true
 		}
 
-		if field == "password" {
+		if sensitive_fields[field] {
 			input.EchoMode = textinput.EchoPassword
 		}
 
@@ -221,7 +221,7 @@ func (m Model) View() string {
 			} else {
 				value := ""
 				if m.edit_values[i] != nil {
-					if field == "password" {
+					if sensitive_fields[field] {
 						value = strings.Repeat("*", len(m.edit_values[i].Value()))
 					} else {
 						value = m.edit_values[i].Value()
