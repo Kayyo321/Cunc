@@ -54,7 +54,8 @@ var field_order = []string{
 
 // sensitive_fields marks what we pretend to keep private
 var sensitive_fields = map[string]bool{
-	"password": true,
+	"password":         true,
+	"2fa app-password": true,
 }
 
 // model holds the settings ui state, try not to break it
