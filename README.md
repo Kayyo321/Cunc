@@ -14,22 +14,6 @@ Cunc lets you connect to an email account over IMAP, read and write messages fro
 
 At its core, Cunc is a learning project, a playground for experimenting with TUIs, email handling, and building software in public. If you find it useful, that’s awesome. If not, it was still worth building.
 
-
-### Key Features
-
-- **IMAP Email Fetching** - Connect to your email provider and fetch emails directly
-- **Inbox & Sent Folders** - View both received and sent emails with Tab switching
-- **HTML Email Support** - Automatically converts HTML emails to readable plain text
-- **Scrollable Email Viewer** - Scroll through long emails with boxed, organized layout
-- **Rich Email Composition** - Write emails with spell checking and typo detection
-- **Draft Management** - Save and resume email drafts
-- **Attachment Support** - Add, view, and download email attachments
-- **Contact Autocomplete** - Quick recipient suggestions based on email history
-- **Smart Text Wrapping** - Preserves URLs and prevents line breaks in links
-- **Search Functionality** - Search emails by subject or content
-- **Customizable Settings** - Tailor Cunc to your preferences
-- **Beautiful TUI** - Clean, animated interface with Unicode support
-
 ---
 
 ## Installation
@@ -83,6 +67,8 @@ THEN ... Hookup your email account!! (see troubleshooting below if you have 2FA)
 ---
 
 ## Usage
+
+![Cunc usage demo](gif/v1.gif)
 
 ### Running Cunc
 
@@ -174,6 +160,8 @@ Navigate with **↑/↓**, edit values directly, then press **Ctrl+S** to save.
 
 ## Email Viewing Features
 
+![Email viewing demo](gif/v2.gif)
+
 ### Inbox & Sent Folders
 
 Switch between viewing your received emails (Inbox) and sent emails (Sent) by pressing **Tab**. The current view is indicated at the top of the screen:
@@ -204,6 +192,8 @@ When viewing an email that's longer than the screen:
 1. Use **↑/k** to scroll up
 2. Use **↓/j** to scroll down
 3. Line indicators show your position (e.g., `[32-70 of 77 lines]`)
+
+![Email scrolling demo](gif/v3.gif)
 
 ---
 
@@ -258,6 +248,8 @@ When viewing an email that's longer than the screen:
 
 ### Search (Ctrl+F in Inbox)
 
+![Search demo](gif/v4.gif)
+
 | Key | Action |
 |-----|--------|
 | Type | Enter search query |
@@ -272,6 +264,8 @@ When viewing an email that's longer than the screen:
 - **View Context**: See which folders are being searched (Inbox or Sent)
 
 ### Compose / Editor
+
+![Compose editor demo](gif/v5.gif)
 
 | Key | Action |
 |-----|--------|
